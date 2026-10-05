@@ -699,10 +699,10 @@
     <button id="btn-tetris-pause" class="tetris-pause-btn">⏸ ポーズ</button>
   </section>
 
-  <!-- 始める前のモード選択（サイドパネルの上に重ねる） -->
+  <!-- メニュー：モード選択・ブロック・終了（サイドパネルの上に重ねる）。ゲームオーバーなどからも戻ってこられる -->
   <div class="tetris-panel" id="tetris-mode-panel" style="display:none">
     <div class="tetris-panel-card">
-      <p>MODE SELECT</p>
+      <p>MENU</p>
       <button class="tetris-mode-btn" data-mode="normal">
         <b>NORMAL</b>
         <span>本家と同じルール</span>
@@ -713,6 +713,16 @@
         <span>このサイトの独自ルール</span>
         <small>着地したら0.5秒で固定<br>得点はライン消去のみ</small>
       </button>
+      <button class="tetris-mode-btn" data-action="blocks">
+        <b>BLOCKS</b>
+        <span>出てくるブロックを選ぶ・作る</span>
+        <small id="tetris-blocks-summary"></small>
+      </button>
+      <button class="tetris-mode-btn" data-action="quit">
+        <b>EXIT</b>
+        <span>PEPORIS を終わる</span>
+      </button>
+      <div class="tetris-menu-note" id="tetris-menu-note"></div>
     </div>
   </div>
 
@@ -722,13 +732,34 @@
       <p id="tetris-panel-title"></p>
       <button id="btn-tetris-resume" class="primary">▶ 再開</button>
       <button id="btn-tetris-retry" class="primary">🔁 もう一度</button>
-      <button id="btn-tetris-change-mode">🔀 モードを変えてもう一度</button>
+      <button id="btn-tetris-menu">🏠 メニューへ</button>
       <button id="btn-tetris-retry-art">🧱 今の絵を足場にしてもう一度</button>
       <button id="btn-tetris-keep">🖼 盤面をレイヤーに残して終了</button>
       <button id="btn-tetris-quit">✕ 終了</button>
     </div>
   </div>
 </aside>
+
+<!-- PEPORIS のブロック画面（メニューの BLOCKS で開く。中身は tetris.js が作る） -->
+<div class="tetris-blocks" id="tetris-blocks" style="display:none">
+  <div class="tetris-blocks-inner">
+    <div class="tetris-blocks-head">
+      <div class="tetris-title">BLOCKS</div>
+      <button id="btn-tetris-blocks-back">◀ メニューへ</button>
+    </div>
+    <p class="tetris-blocks-note" id="tetris-blocks-note"></p>
+    <section>
+      <div class="tetris-label">通常ブロック</div>
+      <div class="tetris-block-grid" id="tetris-normal-blocks"></div>
+    </section>
+    <section>
+      <div class="tetris-label">カスタムブロック <span id="tetris-custom-count"></span></div>
+      <div class="tetris-block-grid" id="tetris-custom-blocks"></div>
+      <button id="btn-tetris-block-add" class="primary">＋ 今の絵をブロックにする</button>
+      <p class="tetris-blocks-note" id="tetris-block-add-hint"></p>
+    </section>
+  </div>
+</div>
 
 <script src="colorwheel.js"></script>
 <script src="script.js"></script>

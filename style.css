@@ -1884,13 +1884,17 @@ body.tetris-stage .canvas-area.tetris-grabbing { cursor: grabbing; }
 /* ③ 左からかくかくと出てくるサイドパネル（画面の約1/3） */
 @keyframes tetris-side-in  { from { transform: translateX(-100%); } to { transform: none; } }
 @keyframes tetris-side-out { from { transform: none; } to { transform: translateX(-100%); } }
-.tetris-side {
+.tetris-side,
+.tetris-blocks {
   --t-bg: #15151f;
   --t-box: #0b0b12;
   --t-line: #34344c;
   --t-text: #f2f2f2;
   --t-muted: #8c8ca8;
   --t-accent: #ffd23f;
+  font-family: 'DotGothic16', ui-monospace, 'MS Gothic', monospace;
+}
+.tetris-side {
   display: none;
   position: fixed;
   top: 0; left: 0; bottom: 0;
@@ -1992,7 +1996,7 @@ body.tetris-side-out .tetris-side { animation: tetris-side-out 1s steps(6, end) 
 .tetris-keys dd { color: var(--t-text); }
 
 /* サイドパネル内のボタンはドット絵風にする */
-.tetris-side button {
+.tetris-side button, .tetris-blocks button {
   font-family: inherit;
   font-size: clamp(11px, 1vw, 14px);
   height: auto;
@@ -2005,11 +2009,11 @@ body.tetris-side-out .tetris-side { animation: tetris-side-out 1s steps(6, end) 
   border-radius: 0;
   box-shadow: inset -3px -3px 0 rgba(0,0,0,0.45), inset 3px 3px 0 rgba(255,255,255,0.12);
 }
-.tetris-side button:hover { background: #34344e; }
-.tetris-side button:active { box-shadow: inset 3px 3px 0 rgba(0,0,0,0.45); }
-.tetris-side button.primary { background: var(--t-accent); color: #000; }
-.tetris-side button.primary:hover { background: #ffe07a; }
-.tetris-side button:disabled { opacity: 0.4; }
+.tetris-side button:hover, .tetris-blocks button:hover { background: #34344e; }
+.tetris-side button:active, .tetris-blocks button:active { box-shadow: inset 3px 3px 0 rgba(0,0,0,0.45); }
+.tetris-side button.primary, .tetris-blocks button.primary { background: var(--t-accent); color: #000; }
+.tetris-side button.primary:hover, .tetris-blocks button.primary:hover { background: #ffe07a; }
+.tetris-side button:disabled, .tetris-blocks button:disabled { opacity: 0.4; }
 
 /* モード選択。選んでいる方（フォーカス中）に昔のゲーム風の▶カーソルを出す */
 .tetris-side .tetris-mode-btn {
@@ -2025,6 +2029,82 @@ body.tetris-side-out .tetris-side { animation: tetris-side-out 1s steps(6, end) 
 .tetris-mode-btn small { font-size: clamp(10px, 0.85vw, 12px); color: var(--t-muted); line-height: 1.5; }
 .tetris-side .tetris-mode-btn.is-selected { outline: 2px solid var(--t-accent); outline-offset: 2px; }
 .tetris-mode-btn.is-selected b::before { content: '▶ '; }
+
+.tetris-menu-note { min-height: 1em; font-size: clamp(10px, 0.9vw, 13px); color: #ff8080; text-align: center; }
+.tetris-menu-note:empty { display: none; }
+
+/* ブロック画面（メニューの BLOCKS）。画面全体に重ね、ブロックを横3列で並べる */
+.tetris-blocks {
+  position: fixed;
+  inset: 0;
+  z-index: 80; /* サイドパネル(70)より手前 */
+  overflow-y: auto;
+  background: var(--t-bg);
+  color: var(--t-text);
+  scrollbar-width: thin;
+  scrollbar-color: var(--t-line) transparent;
+}
+.tetris-blocks-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(14px, 3vh, 32px) 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.tetris-blocks-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tetris-blocks section { display: flex; flex-direction: column; gap: 8px; }
+.tetris-blocks .tetris-label { font-size: 13px; }
+.tetris-blocks-note { font-size: 12px; color: var(--t-muted); line-height: 1.6; }
+.tetris-blocks-note:empty { display: none; }
+.tetris-block-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tetris-block-grid:empty { display: none; }
+.tetris-block-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  background: var(--t-box);
+  border: 2px solid var(--t-line);
+  cursor: pointer;
+  min-width: 0;
+}
+.tetris-block-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--t-accent);
+  cursor: pointer;
+}
+.tetris-block-frame {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tetris-block-frame canvas {
+  max-width: 80%;
+  max-height: 80%;
+  width: 80%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.tetris-block-name { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tetris-block-tile small { font-size: 10px; color: var(--t-muted); text-align: center; }
+.tetris-block-tile .tetris-block-why { color: #ff9d6b; }
+/* 出さないブロックは枠全体を灰色にする */
+.tetris-block-tile.off { background: #2a2a2e; border-color: #3a3a40; }
+.tetris-block-tile.off .tetris-block-frame,
+.tetris-block-tile.off .tetris-block-name { filter: grayscale(1); opacity: 0.45; }
+.tetris-block-tile.unusable { cursor: not-allowed; }
+.tetris-blocks .tetris-block-del { min-height: 26px; padding: 2px 8px; font-size: 11px; }
+#btn-tetris-block-add { align-self: flex-start; }
 
 /* タッチ端末ではキー説明の代わりに操作ボタンを出す */
 .tetris-pad { display: none; grid-template-columns: repeat(3, 1fr); gap: 6px; }

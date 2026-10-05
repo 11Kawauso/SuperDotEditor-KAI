@@ -42,15 +42,74 @@
   };
   const BASE_TYPES = Object.keys(PIECES);
   const EXTRA_TYPES = Object.keys(EXTRA_PIECES);
-  const ALL_PIECES = { ...PIECES, ...EXTRA_PIECES };
 
-  // 4方向ぶんの形を先に作っておく（右回転：(x, y) → (n-1-y, x)）
-  const SHAPES = {};
-  Object.entries(ALL_PIECES).forEach(([t, { n, cells }]) => {
-    const rots = [cells];
-    for (let i = 1; i < 4; i++) rots.push(rots[i - 1].map(([x, y]) => [n - 1 - y, x]));
-    SHAPES[t] = rots;
+  // ── ブロックの形 ──
+  // 自分で描いたブロック（カスタムブロック）は最大1024×1024・100万マスにもなるため、
+  // 形はマスの座標の配列（型付き配列）で持ち、回転した形や「下・左・右の端のマス」は使うときに作って覚えておく。
+  // def: { type, n（回転の枠の大きさ）, xs, ys（マスの座標）, colors（マスごとの色。nullならブロック1色） }
+  const DEFS = {};
+  function makeDef(type, n, xs, ys, colors = null) {
+    const def = { type, n, xs, ys, colors, rots: [] };
+    DEFS[type] = def;
+    return def;
+  }
+  Object.entries({ ...PIECES, ...EXTRA_PIECES }).forEach(([t, { n, cells }]) => {
+    makeDef(t, n, Int16Array.from(cells, p => p[0]), Int16Array.from(cells, p => p[1]));
   });
+  const isCustomType = type => type.startsWith('custom:');
+
+  // 回転した形（右回転：(x, y) → (n-1-y, x)）。動かしたときに当たり判定が要るのは、
+  // 動く向きの端のマスだけなので、下・左・右の端のマスの番号も作っておく
+  function shapeOf(type, rot) {
+    const def = DEFS[type];
+    if (def.rots[rot]) return def.rots[rot];
+    const { n, xs: bx, ys: by } = def;
+    const count = bx.length;
+    const xs = new Int16Array(count), ys = new Int16Array(count);
+    for (let i = 0; i < count; i++) {
+      const x = bx[i], y = by[i];
+      if (rot === 0) { xs[i] = x; ys[i] = y; }
+      else if (rot === 1) { xs[i] = n - 1 - y; ys[i] = x; }
+      else if (rot === 2) { xs[i] = n - 1 - x; ys[i] = n - 1 - y; }
+      else { xs[i] = y; ys[i] = n - 1 - x; }
+    }
+    let minX = n, minY = n, maxX = -1, maxY = -1;
+    const mask = new Uint8Array(n * n);
+    for (let i = 0; i < count; i++) {
+      mask[ys[i] * n + xs[i]] = 1;
+      if (xs[i] < minX) minX = xs[i];
+      if (xs[i] > maxX) maxX = xs[i];
+      if (ys[i] < minY) minY = ys[i];
+      if (ys[i] > maxY) maxY = ys[i];
+    }
+    const has = (x, y) => x >= 0 && y >= 0 && x < n && y < n && mask[y * n + x] === 1;
+    const edge = (dx, dy) => {
+      const list = [];
+      for (let i = 0; i < count; i++) if (!has(xs[i] + dx, ys[i] + dy)) list.push(i);
+      return Int32Array.from(list);
+    };
+    const s = {
+      xs, ys, count, minX, minY, maxX, maxY,
+      bottoms: edge(0, 1), lefts: edge(-1, 0), rights: edge(1, 0),
+      img: def.colors ? shapeImage(def, xs, ys, minX, minY, maxX, maxY) : null,
+    };
+    def.rots[rot] = s;
+    return s;
+  }
+
+  // 色のあるブロック（カスタムブロック）の見た目を、形の範囲ぶんの小さなキャンバスに描いておく
+  function shapeImage(def, xs, ys, minX, minY, maxX, maxY) {
+    const w = maxX - minX + 1, h = maxY - minY + 1;
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    const px = new Uint32Array(img.data.buffer);
+    for (let i = 0; i < xs.length; i++) px[(ys[i] - minY) * w + (xs[i] - minX)] = def.colors[i];
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
   // 回転して壁や他のブロックにぶつかったとき、ずらして収まる位置を順に試す。
   // 通常の7種類は本家と同じSRS（スーパーローテーションシステム）の表を使う。
   // 表は本家の資料どおり上向きが+yで書き、下向きが+yの盤面に合わせて符号を反転する。
@@ -83,7 +142,7 @@
   function kicksFor(type, from, to) {
     if (type === 'I') return SRS_I[`${from}${to}`];
     if (type in PIECES) return SRS_JLSTZ[`${from}${to}`]; // Oは回しても形が変わらないので(0,0)で収まる
-    return EXTRA_KICKS;
+    return EXTRA_KICKS; // 特殊ブロック・カスタムブロック
   }
 
   // 本家のブロックの色（ホーム画面から直接遊ぶとき）
@@ -162,17 +221,18 @@
     return { hex, u32 };
   }
 
-  // 形を1巡ずつシャッフルして出す（同じ形ばかり続かないように）
+  // 形を1巡ずつシャッフルして出す（同じ形ばかり続かないように）。
+  // 出すのはブロック画面でチェックした形だけ。カスタムブロックは描いた色のままなので色を選ばない
   function nextPiece() {
     if (!g.bag.length) {
-      g.bag = g.extras ? [...BASE_TYPES, ...EXTRA_TYPES] : [...BASE_TYPES];
+      g.bag = [...g.types];
       for (let i = g.bag.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [g.bag[i], g.bag[j]] = [g.bag[j], g.bag[i]];
       }
     }
     const type = g.bag.pop();
-    return { type, color: pickColor(type) };
+    return { type, color: DEFS[type].colors ? null : pickColor(type) };
   }
 
   // ネクストの先頭を取り出し、列の最後に新しいブロックを足す
@@ -183,23 +243,49 @@
   }
 
   // ── 盤面 ──
-  function collides(type, rot, x, y) {
-    for (const [dx, dy] of SHAPES[type][rot]) {
-      const cx = x + dx, cy = y + dy;
-      if (cx < 0 || cx >= g.w || cy >= g.h) return true;
-      if (cy >= 0 && g.field[cy * g.w + cx]) return true; // 盤面より上はまだ空いている扱い
+  // list（マスの番号）を省くと全部のマスを調べる
+  function collides(type, rot, x, y, list = null) {
+    const { xs, ys, count } = shapeOf(type, rot);
+    const { w, h, field } = g;
+    const len = list ? list.length : count;
+    for (let k = 0; k < len; k++) {
+      const i = list ? list[k] : k;
+      const cx = x + xs[i], cy = y + ys[i];
+      if (cx < 0 || cx >= w || cy >= h) return true;
+      if (cy >= 0 && field[cy * w + cx]) return true; // 盤面より上はまだ空いている扱い
     }
     return false;
   }
 
+  // 今の位置から1マス動かせるか。今の位置では重なっていないので、動く向きの端のマスだけ調べればよい
+  function blocked(c, dx, dy) {
+    const s = shapeOf(c.type, c.rot);
+    const list = dy > 0 ? s.bottoms : dx < 0 ? s.lefts : s.rights;
+    return collides(c.type, c.rot, c.x + dx, c.y + dy, list);
+  }
+
+  // 各列について、その段から下で最初に埋まっている段（無ければ盤面の高さ）。
+  // ゴースト（落下位置）を大きなブロックでもすぐ求められるよう、盤面が変わるたびに作り直す
+  function updateBelow() {
+    const { w, h, field } = g;
+    if (!g.below || g.below.length !== w * h) g.below = new Int32Array(w * h);
+    const below = g.below;
+    for (let c = 0; c < w; c++) {
+      let next = h;
+      for (let r = h - 1; r >= 0; r--) {
+        if (field[r * w + c]) next = r;
+        below[r * w + c] = next;
+      }
+    }
+  }
+
   function spawn(piece) {
-    const n = ALL_PIECES[piece.type].n;
-    const cells = SHAPES[piece.type][0];
+    const n = DEFS[piece.type].n;
     g.cur = {
       ...piece,
       rot: 0,
       x: Math.floor((g.w - n) / 2),
-      y: -Math.min(...cells.map(p => p[1])), // 枠の上の空き段を詰めて、最上段に出す
+      y: -shapeOf(piece.type, 0).minY, // 枠の上の空き段を詰めて、最上段に出す
     };
     g.lockAt = null;
     g.lockResets = 0;
@@ -241,7 +327,7 @@
 
   function tryMove(dx, dy) {
     const c = g.cur;
-    if (collides(c.type, c.rot, c.x + dx, c.y + dy)) return false;
+    if (blocked(c, dx, dy)) return false;
     c.x += dx;
     c.y += dy;
     afterMove();
@@ -262,11 +348,21 @@
     }
   }
 
+  // 落下位置：下の端のマスそれぞれについて、その下で最初に埋まっている段までの距離の最小値
   function ghostY() {
     const c = g.cur;
-    let y = c.y;
-    while (!collides(c.type, c.rot, c.x, y + 1)) y++;
-    return y;
+    const { xs, ys, bottoms } = shapeOf(c.type, c.rot);
+    const { w, h, below } = g;
+    let drop = h;
+    for (let k = 0; k < bottoms.length; k++) {
+      const i = bottoms[k];
+      const cx = c.x + xs[i], cy = c.y + ys[i];
+      const r = cy + 1;
+      const hit = r >= h ? h : below[Math.max(0, r) * w + cx];
+      const d = hit - cy - 1;
+      if (d < drop) drop = d;
+    }
+    return c.y + drop;
   }
 
   // ノーマルモードでは落とした段数×2点が入る（ハードモードは横一列が揃ったときだけ）
@@ -289,16 +385,20 @@
 
   function lockPiece() {
     const c = g.cur;
-    const fctx = g.fieldCtx;
-    fctx.fillStyle = c.color.hex;
+    const s = shapeOf(c.type, c.rot);
+    const colors = DEFS[c.type].colors;
+    const { w, field, rowFill } = g;
     let lockedOut = false;
-    for (const [dx, dy] of SHAPES[c.type][c.rot]) {
-      const cx = c.x + dx, cy = c.y + dy;
+    for (let i = 0; i < s.count; i++) {
+      const cx = c.x + s.xs[i], cy = c.y + s.ys[i];
       if (cy < 0) { lockedOut = true; continue; } // 盤面からはみ出したまま積もった
-      g.field[cy * g.w + cx] = c.color.u32;
-      g.rowFill[cy]++;
-      fctx.fillRect(cx, cy, 1, 1);
+      field[cy * w + cx] = colors ? colors[i] : c.color.u32;
+      rowFill[cy]++;
     }
+    // 盤面の画像は、ブロックが置かれた範囲だけ描き直す
+    g.fieldCtx.putImageData(g.fieldImg, 0, 0,
+      c.x + s.minX, c.y + s.minY, s.maxX - s.minX + 1, s.maxY - s.minY + 1);
+    updateBelow();
     g.cur = null;
     if (lockedOut) { gameOver(); return; }
     const full = [];
@@ -326,6 +426,7 @@
     field.fill(0, 0, (dst + 1) * w);
     rowFill.fill(0, 0, dst + 1);
     g.fieldCtx.putImageData(g.fieldImg, 0, 0);
+    updateBelow();
 
     const n = Math.min(cleared, 4);
     g.score += LINE_SCORES[n] * currentLevel();
@@ -350,8 +451,12 @@
     renderGhost();
     const c = g.cur;
     if (!c) return;
+    const s = shapeOf(c.type, c.rot);
+    if (s.img) { ctx.drawImage(s.img, c.x + s.minX, c.y + s.minY); return; } // 盤面より上の部分は自然に切れる
     ctx.fillStyle = c.color.hex;
-    for (const [dx, dy] of SHAPES[c.type][c.rot]) if (c.y + dy >= 0) ctx.fillRect(c.x + dx, c.y + dy, 1, 1);
+    for (let i = 0; i < s.count; i++) {
+      if (c.y + s.ys[i] >= 0) ctx.fillRect(c.x + s.xs[i], c.y + s.ys[i], 1, 1);
+    }
   }
 
   // 色を暗くする（f=0.5なら明るさ半分）
@@ -366,20 +471,23 @@
   // GHOST_PXピクセルで描く。ブロックの色を暗くした斜線と外周の線で、はっきり見せる。
   const GHOST_PX = 10;
   const GHOST_STRIPE = 5; // 斜線の間隔（1マスに2本）
+  const GHOST_DETAIL_MAX = 200; // これより多いマスのブロックは、斜線を引かず薄く重ねるだけにする
+  const CUSTOM_GHOST_COLOR = '#9a9aa8'; // 色がマスごとに違うカスタムブロックのゴーストの色
   function renderGhost() {
     const cv = g.ghostCanvas;
     const c = g.cur;
-    const gy = c ? ghostY() : 0;
-    const cells = c
-      ? SHAPES[c.type][c.rot].map(([dx, dy]) => [c.x + dx, gy + dy]).filter(([, y]) => y >= 0)
-      : [];
-    if (!cells.length) { cv.style.display = 'none'; return; }
-
-    const xs = cells.map(p => p[0]), ys = cells.map(p => p[1]);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const bw = Math.max(...xs) - minX + 1, bh = Math.max(...ys) - minY + 1;
-    cv.width = bw * GHOST_PX;
-    cv.height = bh * GHOST_PX;
+    if (!c) { cv.style.display = 'none'; return; }
+    const s = shapeOf(c.type, c.rot);
+    const gy = ghostY();
+    // ゴーストの範囲（盤面より上は表示しない）
+    const minX = c.x + s.minX, maxX = c.x + s.maxX;
+    const minY = Math.max(0, gy + s.minY), maxY = gy + s.maxY;
+    if (maxY < 0) { cv.style.display = 'none'; return; }
+    const bw = maxX - minX + 1, bh = maxY - minY + 1;
+    const detail = s.count <= GHOST_DETAIL_MAX;
+    const P = detail ? GHOST_PX : 1;
+    cv.width = bw * P;
+    cv.height = bh * P;
     Object.assign(cv.style, {
       display: '',
       left: `${minX / g.w * 100}%`,
@@ -387,19 +495,37 @@
       width: `${bw / g.w * 100}%`,
       height: `${bh / g.h * 100}%`,
     });
-
     const ctx = cv.getContext('2d');
+    const hex = c.color ? c.color.hex : CUSTOM_GHOST_COLOR;
+
+    if (!detail) {
+      // 大きなブロックは、ブロックの形をそのまま薄く重ねる
+      ctx.globalAlpha = 0.35;
+      if (s.img) {
+        ctx.drawImage(s.img, c.x + s.minX - minX, gy + s.minY - minY);
+      } else {
+        ctx.fillStyle = hex;
+        for (let i = 0; i < s.count; i++) ctx.fillRect(c.x + s.xs[i] - minX, gy + s.ys[i] - minY, 1, 1);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    const cells = [];
+    for (let i = 0; i < s.count; i++) {
+      const y = gy + s.ys[i];
+      if (y >= 0) cells.push([c.x + s.xs[i], y]);
+    }
     const filled = new Set(cells.map(([x, y]) => `${x},${y}`));
-    const P = GHOST_PX;
     for (const [x, y] of cells) {
       const ox = (x - minX) * P, oy = (y - minY) * P;
       // 薄い下地
       ctx.globalAlpha = 0.2;
-      ctx.fillStyle = c.color.hex;
+      ctx.fillStyle = hex;
       ctx.fillRect(ox, oy, P, P);
       ctx.globalAlpha = 1;
       // 斜線（キャンバス全体の座標で引くので、隣のマスとつながった線になる）
-      ctx.fillStyle = shadeHex(c.color.hex, 0.55);
+      ctx.fillStyle = shadeHex(hex, 0.55);
       for (let py = 0; py < P; py++) {
         for (let px = 0; px < P; px++) {
           if ((ox + px + oy + py) % GHOST_STRIPE === 0) ctx.fillRect(ox + px, oy + py, 1, 1);
@@ -424,20 +550,30 @@
     ctx.globalAlpha = 1;
   }
 
-  // ネクスト・ホールドの小さな表示（1マス2ピクセルで中央寄せ）
+  // ネクスト・ホールドの小さな表示（中央寄せ。小さいブロックは1マス2ピクセル）
   function drawPreview(canvas, piece) {
-    const cells = piece ? SHAPES[piece.type][0] : [];
-    const xs = cells.map(p => p[0]), ys = cells.map(p => p[1]);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const bw = piece ? Math.max(...xs) - minX + 1 : 0;
-    const bh = piece ? Math.max(...ys) - minY + 1 : 0;
+    if (!piece) { canvas.width = canvas.height = 10; return; }
+    drawShape(canvas, piece.type, piece.color ? piece.color.hex : null);
+  }
+
+  // 形を canvas の中央に描く（ブロック画面の一覧でも使う）。hex が null なら描いた色のまま
+  function drawShape(canvas, type, hex) {
+    const s = shapeOf(type, 0);
+    const bw = s.maxX - s.minX + 1, bh = s.maxY - s.minY + 1;
     const size = Math.max(4, bw, bh) + 1; // 周りに少し余白を取る
-    canvas.width = canvas.height = size * 2;
-    if (!piece) return;
+    const scale = size <= 64 ? 2 : 1;
+    canvas.width = canvas.height = size * scale;
     const ctx = canvas.getContext('2d');
-    const ox = size - bw, oy = size - bh;
-    ctx.fillStyle = piece.color.hex;
-    for (const [x, y] of cells) ctx.fillRect(ox + (x - minX) * 2, oy + (y - minY) * 2, 2, 2);
+    const ox = (size - bw) * scale / 2, oy = (size - bh) * scale / 2;
+    if (s.img) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(s.img, ox, oy, bw * scale, bh * scale);
+      return;
+    }
+    ctx.fillStyle = hex;
+    for (let i = 0; i < s.count; i++) {
+      ctx.fillRect(ox + (s.xs[i] - s.minX) * scale, oy + (s.ys[i] - s.minY) * scale, scale, scale);
+    }
   }
 
   function updateHud() {
@@ -551,7 +687,7 @@
     }
 
     const c = g.cur;
-    if (collides(c.type, c.rot, c.x, c.y + 1)) {
+    if (blocked(c, 0, 1)) {
       if (g.lockAt === null) g.lockAt = now + LOCK_DELAY;
       else if (now >= g.lockAt) lockPiece();
     } else {
@@ -612,7 +748,15 @@
   // 遊んでいる間（出入りの演出中も含む）はエディタのショートカット（ツール切替・Undo・
   // Dキーの確認モードなど）を一切効かせないよう、どのリスナーより先に受け取って止める
   window.addEventListener('keydown', e => {
-    if (!g || isTypingTarget(e.target)) return;
+    if (!g) return;
+    if (g.state === 'blocks') {
+      // ブロック画面ではチェックや矢印キーでのスクロールなど、普通の操作に任せる
+      // （チェックボックスにフォーカスがあっても、エディタのショートカットは効かせない）
+      e.stopImmediatePropagation();
+      if (e.code === 'Escape') { e.preventDefault(); closeBlocksScreen(); }
+      return;
+    }
+    if (isTypingTarget(e.target)) return;
     e.stopImmediatePropagation();
     if (e.code === 'Escape' || e.code === 'KeyP') {
       e.preventDefault();
@@ -745,9 +889,14 @@
       }
     }
     g.fieldCtx.putImageData(g.fieldImg, 0, 0);
+    updateBelow();
     g.cur = null;
     renderPiece();
     g.clearing = null;
+    // 出すブロック（ブロック画面でチェックしてあり、この盤面で使えるもの）
+    g.types = activeTypes();
+    g.types.forEach(t => (DEFS[t].hexes || []).forEach(([u32, hex]) => g.hexOf.set(u32, hex)));
+    updateNote();
     g.bag = [];
     g.score = 0;
     g.lines = 0;
@@ -756,7 +905,7 @@
     g.held = { left: 0, right: 0, down: 0 };
     g.lastDir = null;
     g.lastShift = 0;
-    g.queue = Array.from({ length: NEXT_COUNT }, () => nextPiece());
+    g.queue = g.types.length ? Array.from({ length: NEXT_COUNT }, () => nextPiece()) : [];
     elMsg.textContent = '';
     hidePanel();
     updateHud();
@@ -797,10 +946,13 @@
     elSize.textContent = `${g.w}×${g.h} · ${MODE_LABELS[mode]}`;
   }
 
-  // モード選択画面を出し、選ばれたモードで解決するPromiseを返す
+  // メニュー（モード選択・ブロック・終了）を出し、選ばれたモードで解決するPromiseを返す。
+  // ゲームオーバーやポーズからもここへ戻れるので、エディタに戻らずにPEPORISの画面にとどまれる
   function chooseMode() {
     g.state = 'select';
     side.scrollTop = 0; // 重ねる画面はパネルの最上部に置いているため
+    menuNote.textContent = '';
+    updateBlocksSummary();
     modePanel.style.display = '';
     selectModeBtn(modeBtns.find(b => b.dataset.mode === g.mode) || modeBtns[0]);
     return new Promise(resolve => { g.resolveMode = resolve; });
@@ -818,6 +970,12 @@
     b.addEventListener('focus', () => selectModeBtn(b));        // Tabキーで移ったとき
     b.addEventListener('click', () => {
       if (!g || g.state !== 'select') return;
+      if (b.dataset.action === 'blocks') { openBlocksScreen(); return; }
+      if (b.dataset.action === 'quit') { closeGame(false); return; }
+      if (!activeTypes().length) {
+        menuNote.textContent = '出てくるブロックがありません。BLOCKS で選んでください';
+        return;
+      }
       modePanel.style.display = 'none';
       b.blur(); // 遊んでいる間のSpaceでボタンが押されないように
       setMode(b.dataset.mode);
@@ -836,11 +994,317 @@
       colorsEl.appendChild(sw);
     });
     colorsBox.style.display = g.palette.length ? '' : 'none';
+    updateNote();
+  }
+
+  function updateNote() {
     const notes = [];
     if (g.w >= 100) notes.push(`1列そろえるのに ${g.w.toLocaleString()} マス必要です`);
-    if (g.extras) notes.push('巨大盤面ボーナス：特殊ブロック出現中');
+    const types = g.types || [];
+    if (types.some(t => EXTRA_TYPES.includes(t))) notes.push('巨大盤面ボーナス：特殊ブロック出現中');
+    const customs = types.filter(isCustomType).length;
+    if (customs) notes.push(`カスタムブロック ${customs} 個出現中`);
     elNote.textContent = notes.join('\n');
   }
+
+  // ── ブロックの選択とカスタムブロック ──
+  // メニューの BLOCKS で開く画面。通常ブロックとカスタムブロックを並べ、右上のチェックで
+  // ゲームに出すかどうかを選ぶ（初めは全部出す）。盤面以上の大きさのブロックは選べない。
+  // カスタムブロックは、エディタで描いた絵（選択範囲があればその中だけ）を色のまま
+  // ブロックにしたもので、このブラウザ（IndexedDB）に MAX_CUSTOM_BLOCKS 個まで保存できる。
+  const BLOCKS_OFF_KEY = 'pixelart-peporis-blocks-off'; // 出さないことにしたブロック（初めは空＝全部出す）
+  const MAX_CUSTOM_BLOCKS = 10;
+  const BLOCK_DB = 'pixelart-peporis';
+  const BLOCK_STORE = 'blocks';
+  const blocksScreen = document.getElementById('tetris-blocks');
+  const elBlocksNote = document.getElementById('tetris-blocks-note');
+  const normalGrid = document.getElementById('tetris-normal-blocks');
+  const customGrid = document.getElementById('tetris-custom-blocks');
+  const elCustomCount = document.getElementById('tetris-custom-count');
+  const btnBlockAdd = document.getElementById('btn-tetris-block-add');
+  const elBlockAddHint = document.getElementById('tetris-block-add-hint');
+  const btnBlocksBack = document.getElementById('btn-tetris-blocks-back');
+  const blocksBtn = modeBtns.find(b => b.dataset.action === 'blocks');
+  const elBlocksSummary = document.getElementById('tetris-blocks-summary');
+  const menuNote = document.getElementById('tetris-menu-note');
+
+  let customBlocks = [];       // 保存してあるカスタムブロック {id, name, w, h, type}（作った順）
+  let blockStorageError = false;
+
+  function loadOffTypes() {
+    try {
+      const list = JSON.parse(localStorage.getItem(BLOCKS_OFF_KEY));
+      return new Set(Array.isArray(list) ? list : []);
+    } catch (err) { return new Set(); }
+  }
+  function saveOffTypes(set) {
+    try { localStorage.setItem(BLOCKS_OFF_KEY, JSON.stringify([...set])); } catch (err) { /* 覚えられなくても今回は効く */ }
+  }
+
+  const allTypes = () => [...BASE_TYPES, ...EXTRA_TYPES, ...customBlocks.map(b => b.type)];
+
+  // この盤面で使えない理由（使えるならnull）
+  function unusableReason(type) {
+    if (EXTRA_TYPES.includes(type) && (g.standard || g.w < EXTRA_MIN_SIZE || g.h < EXTRA_MIN_SIZE)) {
+      return `${EXTRA_MIN_SIZE}×${EXTRA_MIN_SIZE}以上の盤面で出現`;
+    }
+    if (DEFS[type].n >= Math.min(g.w, g.h)) return '盤面より大きい';
+    return null;
+  }
+
+  function activeTypes() {
+    const off = loadOffTypes();
+    return allTypes().filter(t => !off.has(t) && !unusableReason(t));
+  }
+
+  function updateBlocksSummary() {
+    elBlocksSummary.textContent = `出現 ${activeTypes().length} 種類`;
+  }
+
+  // ── 保存（IndexedDB） ──
+  function openBlockDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(BLOCK_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(BLOCK_STORE, { keyPath: 'id' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function blockDb(mode, fn) {
+    const db = await openBlockDb();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(BLOCK_STORE, mode);
+        const req = fn(tx.objectStore(BLOCK_STORE));
+        tx.oncomplete = () => resolve(req && req.result);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  function loadImage(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読めませんでした')); };
+      img.src = url;
+    });
+  }
+
+  // 保存してある画像（PNG）から形と色を作る。透明なマスはブロックに含めない
+  async function recordToDef(rec) {
+    const type = 'custom:' + rec.id;
+    if (DEFS[type]) return DEFS[type];
+    const img = await loadImage(new Blob([rec.png], { type: 'image/png' }));
+    const cv = document.createElement('canvas');
+    cv.width = rec.w;
+    cv.height = rec.h;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const px = new Uint32Array(ctx.getImageData(0, 0, rec.w, rec.h).data.buffer);
+    const n = Math.max(rec.w, rec.h);
+    // 回転の中心がずれないよう、正方形の枠の中央に置く
+    const ox = Math.floor((n - rec.w) / 2), oy = Math.floor((n - rec.h) / 2);
+    const xs = [], ys = [], colors = [];
+    const hexes = new Map();
+    for (let y = 0; y < rec.h; y++) {
+      for (let x = 0; x < rec.w; x++) {
+        const v = px[y * rec.w + x];
+        if ((v >>> 24) < 128) continue;
+        const u32 = (v | 0xff000000) >>> 0;
+        xs.push(x + ox);
+        ys.push(y + oy);
+        colors.push(u32);
+        if (!hexes.has(u32)) {
+          hexes.set(u32, '#' + [u32 & 255, (u32 >>> 8) & 255, (u32 >>> 16) & 255]
+            .map(c => c.toString(16).padStart(2, '0')).join(''));
+        }
+      }
+    }
+    const def = makeDef(type, n, Int16Array.from(xs), Int16Array.from(ys), Uint32Array.from(colors));
+    def.hexes = [...hexes]; // 盤面をレイヤーに残すときに色へ戻すため
+    return def;
+  }
+
+  async function refreshCustomBlocks() {
+    try {
+      const records = (await blockDb('readonly', store => store.getAll())) || [];
+      records.sort((a, b) => a.createdAt - b.createdAt);
+      for (const rec of records) await recordToDef(rec);
+      customBlocks = records.map(r => ({ id: r.id, name: r.name, w: r.w, h: r.h, type: 'custom:' + r.id }));
+      blockStorageError = false;
+    } catch (err) {
+      customBlocks = [];
+      blockStorageError = true; // プライベートブラウズなどで保存できない
+    }
+  }
+
+  // 今の絵（見えているレイヤーを重ねた色）を、絵のある範囲ぴったりに切り出す。
+  // 選択範囲があればその中だけ。何も描いていなければnull
+  function artForBlock() {
+    const px = new Uint32Array(cols * rows);
+    let minX = cols, minY = rows, maxX = -1, maxY = -1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (selectionMask && !(selectionMask[r] && selectionMask[r][c])) continue;
+        const hex = compositeAt(r, c);
+        if (!hex) continue;
+        px[r * cols + c] = hexToU32(hex);
+        if (c < minX) minX = c;
+        if (c > maxX) maxX = c;
+        if (r < minY) minY = r;
+        if (r > maxY) maxY = r;
+      }
+    }
+    if (maxX < 0) return null;
+    const w = maxX - minX + 1, h = maxY - minY + 1;
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    const out = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < h; y++) out.set(px.subarray((y + minY) * cols + minX, (y + minY) * cols + minX + w), y * w);
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
+
+  async function addCustomBlock() {
+    if (customBlocks.length >= MAX_CUSTOM_BLOCKS) return;
+    const cv = artForBlock();
+    if (!cv) return;
+    btnBlockAdd.disabled = true;
+    try {
+      const blob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
+      const used = new Set(customBlocks.map(b => b.name));
+      let k = 1;
+      while (used.has(`BLOCK ${k}`)) k++;
+      const rec = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: `BLOCK ${k}`,
+        w: cv.width, h: cv.height,
+        png: await blob.arrayBuffer(), // Blobのままだと保存できないブラウザがあるため
+        createdAt: Date.now(),
+      };
+      await blockDb('readwrite', store => store.put(rec));
+      await refreshCustomBlocks();
+    } catch (err) {
+      blockStorageError = true;
+    }
+    renderBlocksScreen();
+  }
+
+  async function deleteCustomBlock(block) {
+    try {
+      await blockDb('readwrite', store => store.delete(block.id));
+    } catch (err) { /* 消せなかったときは一覧に残る */ }
+    delete DEFS[block.type];
+    const off = loadOffTypes();
+    if (off.delete(block.type)) saveOffTypes(off);
+    await refreshCustomBlocks();
+    renderBlocksScreen();
+  }
+
+  // ── ブロック画面 ──
+  function blockTile(type, name, block) {
+    const reason = unusableReason(type);
+    const off = loadOffTypes();
+    const tile = document.createElement('label');
+    tile.className = 'tetris-block-tile';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'tetris-block-check';
+    check.checked = !off.has(type);
+    check.disabled = !!reason;
+    const sync = () => tile.classList.toggle('off', !check.checked || !!reason);
+    check.addEventListener('change', () => {
+      const set = loadOffTypes();
+      if (check.checked) set.delete(type); else set.add(type);
+      saveOffTypes(set);
+      sync();
+    });
+    sync();
+    tile.classList.toggle('unusable', !!reason);
+
+    const frame = document.createElement('div');
+    frame.className = 'tetris-block-frame';
+    const cv = document.createElement('canvas');
+    drawShape(cv, type, STANDARD_COLORS[type] || '#ffd23f');
+    frame.appendChild(cv);
+
+    const label = document.createElement('div');
+    label.className = 'tetris-block-name';
+    label.textContent = name;
+    tile.append(check, frame, label);
+    if (block) {
+      const size = document.createElement('small');
+      size.textContent = `${block.w}×${block.h}`;
+      tile.appendChild(size);
+    }
+    if (reason) {
+      const why = document.createElement('small');
+      why.className = 'tetris-block-why';
+      why.textContent = reason;
+      tile.appendChild(why);
+    }
+    if (block) {
+      // 削除は押し間違えないよう、もう一度押したときに消す
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'tetris-block-del';
+      del.textContent = '削除';
+      let armed = null;
+      del.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (armed) { clearTimeout(armed); deleteCustomBlock(block); return; }
+        del.textContent = 'もう一度で削除';
+        armed = setTimeout(() => { armed = null; del.textContent = '削除'; }, 3000);
+      });
+      tile.appendChild(del);
+    }
+    return tile;
+  }
+
+  function renderBlocksScreen() {
+    elBlocksNote.textContent = `盤面 ${g.w}×${g.h}。チェックしたブロックがゲームに出てきます`;
+    normalGrid.replaceChildren(...[...BASE_TYPES, ...EXTRA_TYPES].map(t => blockTile(t, t)));
+    customGrid.replaceChildren(...customBlocks.map(b => blockTile(b.type, b.name, b)));
+    elCustomCount.textContent = `${customBlocks.length} / ${MAX_CUSTOM_BLOCKS}`;
+    btnBlockAdd.disabled = blockStorageError || customBlocks.length >= MAX_CUSTOM_BLOCKS || !g.hasArt;
+    elBlockAddHint.textContent = blockStorageError
+      ? 'このブラウザでは保存できません（プライベートブラウズなど）'
+      : customBlocks.length >= MAX_CUSTOM_BLOCKS
+        ? `保存できるのは ${MAX_CUSTOM_BLOCKS} 個までです。いらないブロックを削除してください`
+        : !g.hasArt
+          ? 'エディタで絵を描いてから、右下のブロックのボタンで PEPORIS を開いてください'
+          : 'エディタで描いた絵を、色のままブロックにします（選択範囲があればその中だけ）';
+  }
+
+  function openBlocksScreen() {
+    g.state = 'blocks';
+    // 絵があるかどうか（遊んでいる間は絵は変わらないので、最初に開いたときだけ調べる）
+    if (g.hasArt === undefined) g.hasArt = !g.standard && artForBlock() !== null;
+    renderBlocksScreen();
+    blocksScreen.scrollTop = 0;
+    blocksScreen.style.display = '';
+    btnBlocksBack.focus();
+  }
+
+  function closeBlocksScreen() {
+    blocksScreen.style.display = 'none';
+    g.state = 'select';
+    menuNote.textContent = '';
+    updateBlocksSummary();
+    selectModeBtn(blocksBtn);
+  }
+
+  btnBlocksBack.addEventListener('click', () => { if (g && g.state === 'blocks') closeBlocksScreen(); });
+  btnBlockAdd.addEventListener('click', () => { if (g && g.state === 'blocks') addCustomBlock(); });
 
   // 画面にドット風の文字を使う（テトリスを始めたときにだけ読み込む）
   function loadRetroFont() {
@@ -864,13 +1328,13 @@
       standard, direct,
       mode: loadMode(),
       w: cols, h: rows,
-      extras: !standard && cols >= EXTRA_MIN_SIZE && rows >= EXTRA_MIN_SIZE,
       palette: standard ? [] : customColors.filter(Boolean),
       hexOf: new Map(),
       saved: { zoom, x: center.x, y: center.y }, // 終わったらこの表示に戻す
       raf: 0,
     };
     if (document.activeElement) document.activeElement.blur();
+    const customsReady = refreshCustomBlocks(); // 保存してあるカスタムブロックを、画面の切り替え中に読んでおく
 
     // ① キャンバス以外を画面外へ（直接来たときは一瞬で消す）
     if (direct) body.classList.add('tetris-instant');
@@ -908,7 +1372,9 @@
       sleep(SIDE_MS),
     ]);
 
+    await customsReady;
     await chooseMode();
+    resetBoard(false); // メニューのブロック画面で選び直した分を反映する
     showMessage('READY', 0);
     await sleep(700);
     showMessage('GO!', 800);
@@ -940,6 +1406,8 @@
     g.state = 'outro';
     cancelAnimationFrame(g.raf);
     hidePanel();
+    modePanel.style.display = 'none';
+    blocksScreen.style.display = 'none';
     clearTimeout(msgTimer);
     elMsg.textContent = '';
 
@@ -984,9 +1452,10 @@
   btnResume.addEventListener('click', () => { if (g && g.state === 'paused') resume(); });
   document.getElementById('btn-tetris-retry').addEventListener('click', () => { if (g) retry(false); });
   document.getElementById('btn-tetris-retry-art').addEventListener('click', () => { if (g) retry(true); });
-  document.getElementById('btn-tetris-change-mode').addEventListener('click', async () => {
+  // メニューへ戻る（盤面を空にしてメニューを出し、選んだモードでもう一度始める）
+  document.getElementById('btn-tetris-menu').addEventListener('click', async () => {
     if (!g || (g.state !== 'paused' && g.state !== 'over')) return;
-    hidePanel();
+    resetBoard(false);
     await chooseMode();
     retry(false);
   });
