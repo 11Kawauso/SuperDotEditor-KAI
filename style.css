@@ -2104,7 +2104,7 @@ body.tetris-side-out .tetris-side { animation: tetris-side-out 1s steps(6, end) 
 .tetris-block-tile.off .tetris-block-name { filter: grayscale(1); opacity: 0.45; }
 .tetris-block-tile.unusable { cursor: not-allowed; }
 .tetris-blocks .tetris-block-del { min-height: 26px; padding: 2px 8px; font-size: 11px; }
-#btn-tetris-block-add { align-self: flex-start; }
+.tetris-block-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* タッチ端末ではキー説明の代わりに操作ボタンを出す */
 .tetris-pad { display: none; grid-template-columns: repeat(3, 1fr); gap: 6px; }

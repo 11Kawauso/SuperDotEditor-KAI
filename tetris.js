@@ -1173,11 +1173,14 @@
     return cv;
   }
 
-  async function addCustomBlock() {
-    if (customBlocks.length >= MAX_CUSTOM_BLOCKS) return;
+  // 今の絵をカスタムブロックとして保存する（ブロック画面とエディタの「保存 ▸ PEPORISに保存」で使う）。
+  // 結果は { status: 'ok' | 'full' | 'empty' | 'storage', block }
+  async function saveArtAsBlock() {
+    await refreshCustomBlocks(); // ほかのタブで増減しているかもしれないので、保存の直前に数え直す
+    if (blockStorageError) return { status: 'storage' };
+    if (customBlocks.length >= MAX_CUSTOM_BLOCKS) return { status: 'full' };
     const cv = artForBlock();
-    if (!cv) return;
-    btnBlockAdd.disabled = true;
+    if (!cv) return { status: 'empty' };
     try {
       const blob = await new Promise(resolve => cv.toBlob(resolve, 'image/png'));
       const used = new Set(customBlocks.map(b => b.name));
@@ -1192,11 +1195,35 @@
       };
       await blockDb('readwrite', store => store.put(rec));
       await refreshCustomBlocks();
+      return { status: 'ok', block: { name: rec.name, w: rec.w, h: rec.h } };
     } catch (err) {
       blockStorageError = true;
+      return { status: 'storage' };
     }
+  }
+
+  async function addCustomBlock() {
+    btnBlockAdd.disabled = true;
+    await saveArtAsBlock();
     renderBlocksScreen();
   }
+
+  // エディタの「ファイル ▸ 保存 ▸ PEPORISに保存」
+  document.getElementById('btn-save-peporis').addEventListener('click', async () => {
+    closeFileMenu();
+    if (!started || g) return;
+    const { status, block } = await saveArtAsBlock();
+    if (status === 'ok') {
+      showToast(`PEPORISのカスタムブロック「${block.name}」（${block.w}×${block.h}）として保存しました。`
+        + '右下のブロックのボタンから遊べます');
+    } else if (status === 'full') {
+      showToast(`PEPORISのカスタムブロックは${MAX_CUSTOM_BLOCKS}個までです。PEPORISのメニューの BLOCKS で、いらないブロックを削除してください`, true);
+    } else if (status === 'empty') {
+      showToast(selectionMask ? '選択範囲の中に絵がありません' : '絵がありません。描いてから保存してください', true);
+    } else {
+      showToast('このブラウザではPEPORISのブロックを保存できません（プライベートブラウズなど）', true);
+    }
+  });
 
   async function deleteCustomBlock(block) {
     try {
@@ -1281,8 +1308,8 @@
       : customBlocks.length >= MAX_CUSTOM_BLOCKS
         ? `保存できるのは ${MAX_CUSTOM_BLOCKS} 個までです。いらないブロックを削除してください`
         : !g.hasArt
-          ? 'エディタで絵を描いてから、右下のブロックのボタンで PEPORIS を開いてください'
-          : 'エディタで描いた絵を、色のままブロックにします（選択範囲があればその中だけ）';
+          ? '「ブロックを作る」でエディタに移って描き、「ファイル ▸ 保存 ▸ PEPORISに保存」で保存できます'
+          : '「ブロックを作る」でエディタに移って描けます。「今の絵をブロックにする」は、エディタで描いてある絵を色のままブロックにします（選択範囲があればその中だけ）';
   }
 
   function openBlocksScreen() {
@@ -1305,6 +1332,12 @@
 
   btnBlocksBack.addEventListener('click', () => { if (g && g.state === 'blocks') closeBlocksScreen(); });
   btnBlockAdd.addEventListener('click', () => { if (g && g.state === 'blocks') addCustomBlock(); });
+  // 「ブロックを作る」：PEPORISを終えてエディタに移る（ホームから来たときもホームには戻らない）
+  document.getElementById('btn-tetris-block-draw').addEventListener('click', async () => {
+    if (!g || g.state !== 'blocks') return;
+    await closeGame(false, { toEditor: true });
+    showToast('描いたら「ファイル ▸ 保存 ▸ PEPORISに保存」でブロックにできます（選択範囲があればその中だけ）');
+  });
 
   // 画面にドット風の文字を使う（テトリスを始めたときにだけ読み込む）
   function loadRetroFont() {
@@ -1399,7 +1432,8 @@
     updateLayerPanel();
   }
 
-  async function closeGame(keep) {
+  // keep: 盤面をレイヤーに残す / toEditor: ホームから来たときも、ホームに戻らずエディタに移る
+  async function closeGame(keep, { toEditor = false } = {}) {
     if (!g || g.state === 'outro' || g.state === 'intro') return;
     if (keep) keepBoardAsLayer();
     const body = document.body;
@@ -1414,14 +1448,14 @@
     // ③の逆：サイドパネルを引っ込めながら、キャンバスを元の倍率・位置へ戻す
     body.classList.remove('tetris-side-in');
     body.classList.add('tetris-side-out');
-    if (g.direct && !keep) {
+    if (g.direct && !keep && !toEditor) {
       // ホームから直接来たときは、パネルが引っ込んだらホームへ戻る
       await sleep(SIDE_MS);
       location.href = 'index.html';
       return;
     }
     if (g.direct) {
-      // 盤面を残してエディタに移るので、再読み込みでまたテトリスが始まらないようにする
+      // エディタに移るので（盤面を残す・ブロックを作る）、再読み込みでまたテトリスが始まらないようにする
       // （script.jsのグローバル変数historyはUndo用の配列なので、window.historyを明示する）
       window.history.replaceState(null, '', location.pathname);
     }

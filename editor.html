@@ -65,6 +65,7 @@
           <button id="btn-download" class="menu-item">↓ PNG保存</button>
           <button id="btn-download-transparent" class="menu-item">↓ 透過保存</button>
           <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">📄 作品ファイルとして保存</button>
+          <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">🧱 PEPORISに保存</button>
           <div id="cloud-save-menu" style="display:none">
             <button id="btn-cloud-save" class="menu-item">☁ クラウド保存 ▸</button>
             <div class="menu-submenu" id="cloud-save-dropdown" style="display:none">
@@ -755,7 +756,10 @@
     <section>
       <div class="tetris-label">カスタムブロック <span id="tetris-custom-count"></span></div>
       <div class="tetris-block-grid" id="tetris-custom-blocks"></div>
-      <button id="btn-tetris-block-add" class="primary">＋ 今の絵をブロックにする</button>
+      <div class="tetris-block-actions">
+        <button id="btn-tetris-block-draw" class="primary">✏️ ブロックを作る</button>
+        <button id="btn-tetris-block-add">＋ 今の絵をブロックにする</button>
+      </div>
       <p class="tetris-blocks-note" id="tetris-block-add-hint"></p>
     </section>
   </div>
