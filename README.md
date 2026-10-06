@@ -98,7 +98,8 @@ Mac では Ctrl の代わりに ⌘ を使います。
 | `tetris.js` | PEPORIS |
 | `cloud.js` | ログイン・クラウド保存（Firebase Authentication / Cloud Firestore） |
 | `style.css` | エディタとPEPORISの見た目 |
-| `terms.html` / `privacy.html` / `legal.css` | 利用規約・プライバシーポリシー |
+| `help.html` | ヘルプ・使い方 |
+| `terms.html` / `privacy.html` / `legal.css` | 利用規約・プライバシーポリシー（`legal.css` はヘルプと共通） |
 | `firestore.rules` | Firestore のセキュリティルール（各ユーザーは自分の作品だけ読み書き可能・1人10個まで・大きさにも上限） |
 | `dev_server.py` | 開発用のサーバー |
 
