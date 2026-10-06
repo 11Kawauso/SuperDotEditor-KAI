@@ -15,6 +15,8 @@
   const btnLeft = document.getElementById('btn-frame-left');
   const btnRight = document.getElementById('btn-frame-right');
   const btnDelete = document.getElementById('btn-frame-delete');
+  const delayInput = document.getElementById('frame-delay');
+  const btnOnion = document.getElementById('btn-onion');
   const THUMB_MAX = 56; // コマの一覧の小さな絵の、長い辺の大きさ
   let thumbs = [];      // コマの一覧の小さな絵（frames と同じ並び）
 
@@ -29,7 +31,10 @@
     activeLayerIndex = frames[i].active;
     syncActiveCells();
     drawCells();
-    if (!playing) updateLayerPanel();
+    if (!playing) {
+      updateLayerPanel();
+      drawOnionSkin();
+    }
     markCurrent();
   }
 
@@ -53,6 +58,7 @@
     insertFrame({
       layers: layers.map(l => ({ ...l, cells: l.cells.map(r => [...r]) })),
       active: activeLayerIndex,
+      ...(frames[currentFrame].delay ? { delay: frames[currentFrame].delay } : {}),
     });
   }
 
@@ -118,12 +124,21 @@
       const num = document.createElement('span');
       num.textContent = i + 1;
       item.append(cv, num);
+      if (f.delay) {
+        // 表示時間を個別に決めたコマには、その時間を出しておく
+        const badge = document.createElement('span');
+        badge.className = 'timeline-delay';
+        badge.textContent = `${f.delay}ms`;
+        item.appendChild(badge);
+        item.title += `（${f.delay}ミリ秒）`;
+      }
       item.addEventListener('click', () => { stopPlayback(); switchFrame(i); });
       framesEl.appendChild(item);
       return cv;
     });
     thumbs.forEach((_, i) => drawFrameThumb(i));
     markCurrent();
+    drawOnionSkin();
   }
 
   function markCurrent() {
@@ -135,22 +150,33 @@
     btnLeft.disabled = currentFrame <= 0;
     btnRight.disabled = currentFrame >= frames.length - 1;
     btnPlay.disabled = frames.length <= 1 && !playTimer;
+    if (document.activeElement !== delayInput) delayInput.value = frames[currentFrame].delay || '';
   }
 
   // ── 再生 ──
+  // コマごとに表示時間が違うことがあるので、1コマ表示するたびに次の切り替えを予約する
   let playTimer = null;
+  const frameDuration = i => frames[i].delay || 1000 / animFps;
+  function scheduleNextFrame() {
+    playTimer = setTimeout(() => {
+      switchFrame((currentFrame + 1) % frames.length, true);
+      scheduleNextFrame();
+    }, frameDuration(currentFrame));
+  }
   function startPlayback() {
     if (frames.length <= 1 || playTimer) return;
     if (isPainting || moveDrag) return;
-    playTimer = setInterval(() => switchFrame((currentFrame + 1) % frames.length, true), 1000 / animFps);
+    scheduleNextFrame();
     btnPlay.textContent = '■';
     btnPlay.title = '止める';
     btnPlay.classList.add('active');
+    drawOnionSkin(); // 再生中は前後のコマを重ねない
   }
   function stopPlayback() {
     if (!playTimer) return;
-    clearInterval(playTimer);
+    clearTimeout(playTimer);
     playTimer = null;
+    drawOnionSkin();
     btnPlay.textContent = '▶';
     btnPlay.title = '再生（コマを順に表示）';
     btnPlay.classList.remove('active');
@@ -167,8 +193,68 @@
     if (v === animFps) return;
     animFps = v;
     markChanged(); // 速さも作品ファイルに保存する
-    if (playTimer) { stopPlayback(); startPlayback(); }
   });
+
+  // 今のコマの表示時間（ミリ秒）。空にすると全体の速さに合わせる。元に戻せる
+  delayInput.addEventListener('change', () => {
+    if (!started) return;
+    const raw = delayInput.value.trim();
+    const v = raw === '' ? null
+      : Math.max(MIN_FRAME_DELAY, Math.min(MAX_FRAME_DELAY, Math.round(Number(raw) / 10) * 10 || MIN_FRAME_DELAY));
+    const f = frames[currentFrame];
+    if ((f.delay || null) === v) { delayInput.value = v || ''; return; }
+    pushFramesHistory();
+    if (v) f.delay = v; else delete f.delay;
+    delayInput.value = v || '';
+    renderTimeline();
+  });
+  delayInput.addEventListener('keydown', e => { if (e.key === 'Enter') delayInput.blur(); });
+
+  // ── 前後のコマを薄く表示（オニオンスキン） ──
+  // 前のコマを赤く、次のコマを青く染めて、今のコマの下に薄く重ねる。動きをつなげて描きやすくする
+  const ONION_KEY = 'pixelart-onion-skin';
+  let onionOn = false;
+  try { onionOn = localStorage.getItem(ONION_KEY) === '1'; } catch (err) { /* 読めなければ出さない */ }
+  const onionScratch = document.createElement('canvas');
+
+  function drawOnionSkin() {
+    const ctx = cOnion.getContext('2d');
+    ctx.clearRect(0, 0, cOnion.width, cOnion.height);
+    if (!onionOn || playTimer || frames.length <= 1 || timeline.style.display === 'none') return;
+    const px = cellPx();
+    onionScratch.width = cols;
+    onionScratch.height = rows;
+    const sctx = onionScratch.getContext('2d');
+    [[currentFrame - 1, '#ff3b30'], [currentFrame + 1, '#1e6bff']].forEach(([i, tint]) => {
+      if (i < 0 || i >= frames.length) return;
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.clearRect(0, 0, cols, rows);
+      for (const layer of frames[i].layers) {
+        if (!layer.visible || layer.opacity <= 0) continue;
+        sctx.globalAlpha = layer.opacity;
+        sctx.drawImage(getLayerCanvas(layer, false), 0, 0);
+      }
+      // 絵のある所だけを色で染める
+      sctx.globalAlpha = 0.6;
+      sctx.globalCompositeOperation = 'source-atop';
+      sctx.fillStyle = tint;
+      sctx.fillRect(0, 0, cols, rows);
+      sctx.globalAlpha = 1;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(onionScratch, 0, 0, cols, rows, 0, 0, cols * px, rows * px);
+    });
+    sctx.globalCompositeOperation = 'source-over';
+  }
+  window.drawOnionSkin = drawOnionSkin;
+
+  function setOnion(on) {
+    onionOn = on;
+    btnOnion.classList.toggle('active', on);
+    try { localStorage.setItem(ONION_KEY, on ? '1' : '0'); } catch (err) { /* 覚えられなくても使える */ }
+    drawOnionSkin();
+  }
+  btnOnion.addEventListener('click', () => setOnion(!onionOn));
+  btnOnion.classList.toggle('active', onionOn);
 
   // ── 一覧の表示・非表示 ──
   const TIMELINE_KEY = 'pixelart-timeline-open';
@@ -177,7 +263,7 @@
     btnToggle.classList.toggle('active', open);
     document.body.classList.toggle('timeline-open', open);
     document.body.style.setProperty('--timeline-h', open ? `${timeline.offsetHeight}px` : '0px');
-    if (!open) stopPlayback();
+    if (!open) { stopPlayback(); drawOnionSkin(); } // 一覧をしまったら前後のコマも重ねない
     try { localStorage.setItem(TIMELINE_KEY, open ? '1' : '0'); } catch (err) { /* 覚えられなくても使える */ }
     // キャンバスの見える範囲が変わったので、スクロールの余白と左下の色の位置を合わせ直す
     updateScrollPadding();
@@ -244,12 +330,13 @@
       b.addEventListener('click', () => { gifScale = s; buildGifModal(); });
       gifScaleGrid.appendChild(b);
     });
-    const delay = gifDelayCs() / 100;
-    gifInfo.textContent = `${frames.length}コマ・${animFps}fps（1コマ ${delay}秒）・くり返し再生`;
+    const custom = frames.filter(f => f.delay).length;
+    gifInfo.textContent = `${frames.length}コマ・${animFps}fps（1コマ ${gifDelayCs(-1) / 100}秒`
+      + `${custom ? `・${custom}コマは個別の時間` : ''}）・くり返し再生`;
   }
 
-  // 1コマの表示時間（GIFは0.01秒単位）
-  const gifDelayCs = () => Math.max(2, Math.round(100 / animFps));
+  // コマの表示時間（GIFは0.01秒単位）。i が -1 なら全体の速さでの時間
+  const gifDelayCs = i => Math.max(2, Math.round((i >= 0 && frames[i].delay ? frames[i].delay : 1000 / animFps) / 10));
 
   function openGifExport() {
     closeFileMenu();
@@ -359,9 +446,8 @@
 
     const w = cols * scale, h = rows * scale;
     const gif = new GifWriter(w, h, tableColors);
-    const delay = gifDelayCs();
     const px = new Uint8Array(w * h);
-    colorFrames.forEach(f => {
+    colorFrames.forEach((f, fi) => {
       // 1マスを scale×scale に広げながら、色を色の表の番号にする
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -371,7 +457,7 @@
           for (let dy = 0; dy < scale; dy++) px.fill(idx, (r * scale + dy) * w + x0, (r * scale + dy) * w + x0 + scale);
         }
       }
-      gif.addFrame(px, delay, transIndex);
+      gif.addFrame(px, gifDelayCs(fi), transIndex);
     });
     return { bytes: gif.finish(), reduced, w, h };
   }

@@ -485,6 +485,8 @@
         <div id="canvas-wrap">
           <canvas id="canvas-bg"></canvas>
           <canvas id="canvas-trace"></canvas>
+          <!-- 前後のコマを薄く表示する（anim.js） -->
+          <canvas id="canvas-onion"></canvas>
           <canvas id="canvas-main"></canvas>
           <div id="canvas-grid"></div>
           <div class="line-highlight" id="col-highlight" style="display:none"></div>
@@ -509,6 +511,10 @@
     <label class="timeline-fps" title="1秒あたりのコマ数（再生とGIFの速さ）">
       <input type="number" id="anim-fps" min="1" max="50" step="1" value="8"> fps
     </label>
+    <label class="timeline-fps" title="今のコマを表示する時間（ミリ秒）。空にすると全体の速さ（fps）に合わせます">
+      このコマ <input type="number" id="frame-delay" min="20" max="10000" step="10" placeholder="自動"> ms
+    </label>
+    <button id="btn-onion" title="前のコマ（赤）と次のコマ（青）を薄く重ねて表示">👻</button>
     <span class="timeline-label" id="timeline-frame-label"></span>
   </div>
   <div class="timeline-frames" id="timeline-frames"></div>

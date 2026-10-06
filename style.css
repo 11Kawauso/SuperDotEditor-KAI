@@ -758,7 +758,7 @@ input, select, textarea {
   box-shadow: 0 2px 16px rgba(0,0,0,0.10);
 }
 
-#canvas-bg, #canvas-trace, #canvas-main, #canvas-overlay {
+#canvas-bg, #canvas-trace, #canvas-onion, #canvas-main, #canvas-overlay {
   position: absolute;
   top: 0; left: 0;
   display: block;
@@ -766,7 +766,7 @@ input, select, textarea {
 /* 拡大時に1マスがぼやけないよう、補間せずそのまま引き伸ばす。
    1マスは単色なので、これがあれば1マス=1ピクセルでも劣化しない。
    トレース画像は写真などの参考画像なので、こちらは従来どおり滑らかに表示する。 */
-#canvas-bg, #canvas-main, #canvas-overlay {
+#canvas-bg, #canvas-onion, #canvas-main, #canvas-overlay {
   image-rendering: pixelated;
 }
 
@@ -787,6 +787,7 @@ input, select, textarea {
    z-indexはcanvas-bgと同じ0でよい。DOM順でcanvas-bgより後にあるため
    同点の場合はそちらが上に描画される。 */
 #canvas-trace { z-index: 0; pointer-events: none; }
+#canvas-onion { z-index: 0; pointer-events: none; opacity: 0.35; }
 #canvas-main { z-index: 1; pointer-events: none; }
 #canvas-overlay { z-index: 2; cursor: crosshair; }
 /* 色選択の 💉 でサイト内から色を拾っている間、画面の上に出す案内 */
@@ -1138,6 +1139,16 @@ input, select, textarea {
 #btn-anim-play { width: 34px; padding: 0; }
 #btn-anim-play.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .timeline-fps { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+#frame-delay { width: 62px; }
+#btn-onion.active { background: var(--accent); border-color: var(--accent); }
+/* 表示時間を個別に決めたコマの印 */
+.timeline-frame .timeline-delay {
+  left: auto;
+  right: 2px;
+  bottom: auto;
+  top: 2px;
+  background: var(--accent);
+}
 .timeline-fps input {
   width: 46px;
   height: 28px;
@@ -1715,6 +1726,7 @@ body.art-preview .ruler,
 body.art-preview .ruler-corner,
 body.art-preview #canvas-bg,
 body.art-preview #canvas-trace,
+body.art-preview #canvas-onion,
 body.art-preview #canvas-grid,
 body.art-preview #canvas-overlay,
 body.art-preview .line-highlight,
@@ -1944,6 +1956,7 @@ body.tetris-stage .canvas-stage {
   z-index: 40;
 }
 body.tetris-stage #canvas-main,
+body.tetris-stage #canvas-onion,
 body.tetris-stage .ruler,
 body.tetris-stage .ruler-corner,
 body.tetris-stage .line-highlight,

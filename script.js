@@ -21,6 +21,7 @@ let frames = [];         // frames[i] = { layers, active }
 let currentFrame = 0;
 let animFps = 8;         // 再生・GIFの速さ（1秒あたりのコマ数）
 const MAX_FPS = 50;      // GIFの1コマの最短表示時間は0.02秒のため
+const MIN_FRAME_DELAY = 20, MAX_FRAME_DELAY = 10000; // コマごとの表示時間（ミリ秒）の範囲
 // コマの一覧（anim.js）に変化を知らせる。anim.js が window.onFrames〜 を用意する
 let layerNameCounter = 1;
 let cells = [];          // アクティブレイヤーのcellsへの参照。cells[row][col] = '#rrggbb' or null
@@ -59,6 +60,7 @@ let heartImage = null; // ハート図形に使う差し替え用の画像（用
 // ── DOM ───────────────────────────────────────────────
 const cBg  = document.getElementById('canvas-bg');
 const cTrace = document.getElementById('canvas-trace');
+const cOnion = document.getElementById('canvas-onion');
 const cMain= document.getElementById('canvas-main');
 const cOv  = document.getElementById('canvas-overlay');
 const gridOverlay = document.getElementById('canvas-grid');
@@ -258,16 +260,17 @@ function updateScrollPadding() {
 
 function resizeCanvases() {
   const {w, h} = canvasSize();
-  [cBg, cTrace, cMain, cOv].forEach(c => { c.width = w; c.height = h; });
+  [cBg, cTrace, cOnion, cMain, cOv].forEach(c => { c.width = w; c.height = h; });
   wrap.style.width  = (w * zoom) + 'px';
   wrap.style.height = (h * zoom) + 'px';
-  [cBg, cTrace, cMain, cOv].forEach(c => {
+  [cBg, cTrace, cOnion, cMain, cOv].forEach(c => {
     c.style.width  = (w * zoom) + 'px';
     c.style.height = (h * zoom) + 'px';
   });
   updateScrollPadding();
   drawAll();
   drawTraceImage(); // width/height変更でクリアされるため描き直す
+  if (window.drawOnionSkin) window.drawOnionSkin(); // 前後のコマの表示も同じく
 }
 
 function drawAll() {
@@ -1558,6 +1561,7 @@ function framesSnapshot() {
     frames: frames.map((f, i) => ({
       layers: copyLayers(f.layers),
       active: i === currentFrame ? activeLayerIndex : f.active,
+      delay: f.delay, // コマごとの表示時間（ミリ秒。無ければ全体の速さに合わせる）
     })),
   };
 }
@@ -1599,7 +1603,7 @@ function restoreSnapshot(snap) {
   } else {
     // そのコマのレイヤーを戻し、どのコマが戻ったか分かるようにそのコマを表示する
     frames[currentFrame].active = activeLayerIndex;
-    frames[snap.frame] = { layers: snap.layers, active: snap.active };
+    frames[snap.frame] = { ...frames[snap.frame], layers: snap.layers, active: snap.active }; // 表示時間などはそのまま
     currentFrame = snap.frame;
   }
   layers = frames[currentFrame].layers;
@@ -4642,7 +4646,11 @@ function serializeProject() {
     cols, rows,
     fps: animFps,
     current: currentFrame,
-    frames: frames.map(f => ({ active: f.active, layers: serializeLayers(f.layers) })),
+    frames: frames.map(f => ({
+      active: f.active,
+      ...(f.delay ? { delay: f.delay } : {}),
+      layers: serializeLayers(f.layers),
+    })),
   };
 }
 
@@ -4721,7 +4729,9 @@ function loadProjectData(p) {
   frames = savedFrames.map(sf => {
     const fl = decodeLayers(sf.layers);
     const active = Number.isInteger(sf.active) ? Math.max(0, Math.min(fl.length - 1, sf.active)) : fl.length - 1;
-    return { layers: fl, active };
+    const frame = { layers: fl, active };
+    if (Number.isFinite(sf.delay)) frame.delay = Math.max(MIN_FRAME_DELAY, Math.min(MAX_FRAME_DELAY, Math.round(sf.delay)));
+    return frame;
   });
   currentFrame = Number.isInteger(p.current) ? Math.max(0, Math.min(frames.length - 1, p.current)) : 0;
   animFps = Number.isFinite(p.fps) ? Math.max(1, Math.min(MAX_FPS, Math.round(p.fps))) : 8;
