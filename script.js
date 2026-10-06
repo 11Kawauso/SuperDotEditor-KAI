@@ -11,8 +11,17 @@ const PALETTE_COLORS = [
 ];
 
 let cols = 32, rows = 32;
-let layers = [];         // layers[i] = {name, visible, cells}（i=0が最下層）
+let layers = [];         // layers[i] = {name, visible, cells}（i=0が最下層）。今のコマのレイヤー
 let activeLayerIndex = 0;
+// アニメーションのコマ。各コマがそれぞれのレイヤー一式を持つ。
+// layers / activeLayerIndex は今のコマ（frames[currentFrame]）のものを指す
+// （描画ツールなどは今までどおり layers だけを見ればよい）。frames[i].active は
+// 今のコマ以外の、最後に選んでいたレイヤー（今のコマの分は activeLayerIndex が正しい）
+let frames = [];         // frames[i] = { layers, active }
+let currentFrame = 0;
+let animFps = 8;         // 再生・GIFの速さ（1秒あたりのコマ数）
+const MAX_FPS = 50;      // GIFの1コマの最短表示時間は0.02秒のため
+// コマの一覧（anim.js）に変化を知らせる。anim.js が window.onFrames〜 を用意する
 let layerNameCounter = 1;
 let cells = [];          // アクティブレイヤーのcellsへの参照。cells[row][col] = '#rrggbb' or null
 let history = [];
@@ -138,6 +147,7 @@ function invalidateLayerCache(layer) {
 }
 function invalidateAllLayerCaches() {
   layers.forEach(l => layerCanvasCache.delete(l));
+  frames.forEach(f => f.layers.forEach(l => layerCanvasCache.delete(l)));
 }
 
 // 1レイヤーぶんのセルを ImageData に詰める
@@ -182,22 +192,27 @@ function initCells(c, r, keepOld) {
   invalidateAllLayerCaches(); // 全レイヤーのセル配列を作り直すため
   cols = c; rows = r;
   if (keepOld && layers.length) {
-    layers.forEach(l => {
+    // 大きさは全部のコマで同じなので、どのコマのレイヤーも作り直す
+    frames.forEach(f => f.layers.forEach(l => {
       const old = l.cells;
       l.cells = Array.from({length: r}, (_, ri) =>
         Array.from({length: c}, (_, ci) =>
           old[ri] && old[ri][ci] !== undefined ? old[ri][ci] : null
         )
       );
-    });
+    }));
   } else {
     layerNameCounter = 1;
     layers = [makeLayer(`レイヤー${layerNameCounter++}`)];
     activeLayerIndex = 0;
+    frames = [{ layers, active: 0 }];
+    currentFrame = 0;
+    if (typeof onFramesReset === 'function') onFramesReset();
   }
   syncActiveCells();
   document.getElementById('stat-grid').textContent = `${cols}×${rows}`;
   updateLayerPanel();
+  if (keepOld && window.onFramesChanged) window.onFramesChanged(); // 大きさが変わったので、どのコマの小さな絵も描き直す
 }
 
 // 下の色の上に上の色を不透明度alphaで重ねた色を返す。
@@ -1521,14 +1536,33 @@ const HISTORY_LIMIT = 50;
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
 
-function layersSnapshot() {
+// 描く・レイヤーの操作など、ひとつのコマの中の変更は、そのコマのレイヤーだけを記録する（frame）。
+// コマの追加・削除・並べ替えやキャンバスの大きさの変更は全部のコマに関わるので、
+// 全部のコマを記録する（framesSnapshot）。コマが多いと大きくなるので、そのときだけにする
+const copyLayers = list => list.map(l => ({ name: l.name, visible: l.visible, opacity: l.opacity, locked: l.locked, cells: l.cells.map(r => [...r]) }));
+function layersSnapshot(frameIndex = currentFrame) {
+  const isCurrent = frameIndex === currentFrame;
   return {
     cols, rows,
-    active: activeLayerIndex,
+    frame: frameIndex,
+    active: isCurrent ? activeLayerIndex : frames[frameIndex].active,
     mask: selectionMask, // 選択範囲は作り直す一方で書き換えないため参照のままでよい
-    layers: layers.map(l => ({ name: l.name, visible: l.visible, opacity: l.opacity, locked: l.locked, cells: l.cells.map(r => [...r]) })),
+    layers: copyLayers(isCurrent ? layers : frames[frameIndex].layers),
   };
 }
+function framesSnapshot() {
+  return {
+    cols, rows,
+    frame: currentFrame,
+    mask: selectionMask,
+    frames: frames.map((f, i) => ({
+      layers: copyLayers(f.layers),
+      active: i === currentFrame ? activeLayerIndex : f.active,
+    })),
+  };
+}
+// 戻す・やり直すときに、反対側の履歴へ積む「今の状態」（戻す記録と同じ範囲を記録する）
+const snapshotLike = snap => snap.frames ? framesSnapshot() : layersSnapshot(snap.frame);
 function updateHistoryButtons() {
   btnUndo.disabled = !history.length;
   btnRedo.disabled = !redoStack.length;
@@ -1545,6 +1579,10 @@ function pushSnapshot(snap, keepFloat) {
 function pushHistory() {
   pushSnapshot(layersSnapshot());
 }
+// コマの増減・並べ替え、キャンバスの大きさの変更の前に呼ぶ
+function pushFramesHistory() {
+  pushSnapshot(framesSnapshot());
+}
 function clearHistory() {
   history = [];
   redoStack = [];
@@ -1555,10 +1593,20 @@ function restoreSnapshot(snap) {
   const sizeChanged = snap.cols !== cols || snap.rows !== rows;
   cols = snap.cols;
   rows = snap.rows;
-  layers = snap.layers;
-  activeLayerIndex = snap.active;
+  if (snap.frames) {
+    frames = snap.frames;
+    currentFrame = Math.min(snap.frame, frames.length - 1);
+  } else {
+    // そのコマのレイヤーを戻し、どのコマが戻ったか分かるようにそのコマを表示する
+    frames[currentFrame].active = activeLayerIndex;
+    frames[snap.frame] = { layers: snap.layers, active: snap.active };
+    currentFrame = snap.frame;
+  }
+  layers = frames[currentFrame].layers;
+  activeLayerIndex = frames[currentFrame].active;
   selectionMask = snap.mask;
   syncActiveCells();
+  if (typeof onFramesChanged === 'function') onFramesChanged();
   if (sizeChanged) {
     document.getElementById('stat-grid').textContent = `${cols}×${rows}`;
     resizeCanvases();
@@ -1573,13 +1621,15 @@ function restoreSnapshot(snap) {
 }
 function undo() {
   if (!history.length || isPainting || moveDrag) return;
-  redoStack.push(layersSnapshot());
-  restoreSnapshot(history.pop());
+  const snap = history.pop();
+  redoStack.push(snapshotLike(snap));
+  restoreSnapshot(snap);
 }
 function redo() {
   if (!redoStack.length || isPainting || moveDrag) return;
-  history.push(layersSnapshot());
-  restoreSnapshot(redoStack.pop());
+  const snap = redoStack.pop();
+  history.push(snapshotLike(snap));
+  restoreSnapshot(snap);
 }
 // キーの位置（e.code）で判定するため、日本語入力がオンでも効く。
 // Ctrl+Z: 元に戻す／Ctrl+Y・Ctrl+Shift+Z: やり直し
@@ -1683,6 +1733,7 @@ function updateLayerThumbnails() {
   layers.forEach((layer, i) => {
     if (layerThumbCanvases[i]) drawLayerThumb(layerThumbCanvases[i], layer);
   });
+  if (window.onFrameEdited) window.onFrameEdited(); // コマの一覧の小さな絵も描き直す
 }
 
 function updateLayerPanel() {
@@ -1771,6 +1822,7 @@ function updateLayerPanel() {
     btnLayerLock.title = active.locked ? 'ロックを解除' : 'レイヤーをロック';
   }
   updateHeaderStatus();
+  if (window.onFrameEdited) window.onFrameEdited(); // レイヤーの表示切替などでコマの見た目も変わる
 }
 
 // レイヤー項目のドラッグ並び替え（上下移動のみ）。
@@ -3388,7 +3440,7 @@ document.querySelectorAll('.preset-btn').forEach(b => {
   b.addEventListener('click', () => {
     const v = parseInt(b.dataset.size);
     setSizeAll(v);
-    pushHistory();
+    pushFramesHistory(); // 大きさは全部のコマに関わる
     initCells(v, v, true);
     resizeCanvases();
     updatePresetHighlight();
@@ -3421,7 +3473,7 @@ rowsVal.addEventListener('change', () => {
 });
 
 document.getElementById('btn-resize').addEventListener('click', () => {
-  pushHistory();
+  pushFramesHistory(); // 大きさは全部のコマに関わる
   initCells(parseInt(colsSlider.value), parseInt(rowsSlider.value), true);
   resizeCanvases();
   updatePresetHighlight();
@@ -4134,7 +4186,7 @@ function applyTraceCanvasResize() {
   }
   newCols = Math.min(MAX_GRID, newCols);
   newRows = Math.min(MAX_GRID, newRows);
-  pushHistory();
+  pushFramesHistory(); // 大きさは全部のコマに関わる
   initCells(newCols, newRows, true);
   resizeCanvases();
   syncSlidersToGrid();
@@ -4581,44 +4633,53 @@ document.querySelectorAll('.bg-btn').forEach(b => {
 // 保存容量・転送量を抑えるため、各レイヤーのセルは
 // 「パレット＋ランレングス圧縮した文字列」に変換する。
 // 値0は透明、1以降はpalette[値-1]の色を表す。ランは「値*連続数」で表記。
+// コマが1つなら今までと同じ形（version 1）で保存し、2つ以上なら全部のコマを入れる（version 2）
 function serializeProject() {
+  frames[currentFrame].active = activeLayerIndex;
+  if (frames.length <= 1) return { version: 1, cols, rows, layers: serializeLayers(layers) };
   return {
-    version: 1,
+    version: 2,
     cols, rows,
-    layers: layers.map(l => {
-      const palette = [];
-      const paletteMap = new Map();
-      const flat = [];
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const v = l.cells[r][c];
-          if (!v) { flat.push(0); continue; }
-          let idx = paletteMap.get(v);
-          if (idx === undefined) {
-            palette.push(v);
-            idx = palette.length;
-            paletteMap.set(v, idx);
-          }
-          flat.push(idx);
-        }
-      }
-      const runs = [];
-      let run = 1;
-      for (let i = 1; i <= flat.length; i++) {
-        if (i < flat.length && flat[i] === flat[i - 1]) { run++; continue; }
-        runs.push(run > 1 ? `${flat[i - 1]}*${run}` : `${flat[i - 1]}`);
-        run = 1;
-      }
-      return {
-        name: l.name,
-        visible: l.visible,
-        opacity: l.opacity,
-        locked: l.locked,
-        palette,
-        data: runs.join(','),
-      };
-    }),
+    fps: animFps,
+    current: currentFrame,
+    frames: frames.map(f => ({ active: f.active, layers: serializeLayers(f.layers) })),
   };
+}
+
+function serializeLayers(list) {
+  return list.map(l => {
+    const palette = [];
+    const paletteMap = new Map();
+    const flat = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const v = l.cells[r][c];
+        if (!v) { flat.push(0); continue; }
+        let idx = paletteMap.get(v);
+        if (idx === undefined) {
+          palette.push(v);
+          idx = palette.length;
+          paletteMap.set(v, idx);
+        }
+        flat.push(idx);
+      }
+    }
+    const runs = [];
+    let run = 1;
+    for (let i = 1; i <= flat.length; i++) {
+      if (i < flat.length && flat[i] === flat[i - 1]) { run++; continue; }
+      runs.push(run > 1 ? `${flat[i - 1]}*${run}` : `${flat[i - 1]}`);
+      run = 1;
+    }
+    return {
+      name: l.name,
+      visible: l.visible,
+      opacity: l.opacity,
+      locked: l.locked,
+      palette,
+      data: runs.join(','),
+    };
+  });
 }
 
 function decodeLayerCells(sl, c, r) {
@@ -4645,17 +4706,30 @@ function decodeLayerCells(sl, c, r) {
 function loadProjectData(p) {
   cols = Math.max(4, Math.min(MAX_GRID, p.cols));
   rows = Math.max(4, Math.min(MAX_GRID, p.rows));
-  layers = p.layers.map(sl => ({
-    name: sl.name || 'レイヤー',
-    visible: sl.visible !== false,
-    opacity: typeof sl.opacity === 'number' ? sl.opacity : 1,
-    locked: !!sl.locked,
-    cells: decodeLayerCells(sl, cols, rows),
-  }));
-  if (!layers.length) layers = [makeLayer('レイヤー1')];
-  activeLayerIndex = layers.length - 1;
-  layerNameCounter = layers.length + 1;
+  const decodeLayers = list => {
+    const out = (list || []).map(sl => ({
+      name: sl.name || 'レイヤー',
+      visible: sl.visible !== false,
+      opacity: typeof sl.opacity === 'number' ? sl.opacity : 1,
+      locked: !!sl.locked,
+      cells: decodeLayerCells(sl, cols, rows),
+    }));
+    return out.length ? out : [makeLayer('レイヤー1')];
+  };
+  // コマのある保存データ（version 2）と、コマの無い今までの保存データ（version 1）の両方を読める
+  const savedFrames = Array.isArray(p.frames) && p.frames.length ? p.frames : [{ layers: p.layers }];
+  frames = savedFrames.map(sf => {
+    const fl = decodeLayers(sf.layers);
+    const active = Number.isInteger(sf.active) ? Math.max(0, Math.min(fl.length - 1, sf.active)) : fl.length - 1;
+    return { layers: fl, active };
+  });
+  currentFrame = Number.isInteger(p.current) ? Math.max(0, Math.min(frames.length - 1, p.current)) : 0;
+  animFps = Number.isFinite(p.fps) ? Math.max(1, Math.min(MAX_FPS, Math.round(p.fps))) : 8;
+  layers = frames[currentFrame].layers;
+  activeLayerIndex = frames[currentFrame].active;
+  layerNameCounter = Math.max(...frames.map(f => f.layers.length)) + 1;
   syncActiveCells();
+  if (typeof onFramesLoaded === 'function') onFramesLoaded();
   clearHistory();
   resetChangeTracking();
   floating = null;

@@ -42,6 +42,7 @@
     <button class="bg-btn" data-bg="#000000" title="黒" style="background:#000000;"></button>
   </div>
   <button id="btn-toggle-canvas" title="キャンバス表示切替">🔲</button>
+  <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
   <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩ <span class="hide-mobile">元に戻す</span><kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
   <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪ <span class="hide-mobile">やり直し</span><kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
   <button id="btn-clear" class="danger">クリア</button>
@@ -59,11 +60,14 @@
       <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">📂 作品ファイルを開く</button>
       <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
 
+      <button id="btn-menu-timeline" class="menu-item" title="アニメーションのコマの一覧を出す・しまう">🎞 アニメーション（コマ）</button>
+
       <div id="save-menu-group">
         <button id="btn-menu-save" class="menu-item">💾 保存 ▸</button>
         <div class="menu-submenu" id="save-subdropdown" style="display:none">
           <button id="btn-download" class="menu-item">↓ PNG保存</button>
           <button id="btn-download-transparent" class="menu-item">↓ 透過保存</button>
+          <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">🎞 GIF保存</button>
           <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">📄 作品ファイルとして保存</button>
           <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">🧱 PEPORISに保存</button>
           <div id="cloud-save-menu" style="display:none">
@@ -498,6 +502,26 @@
   <aside class="color-dock" id="color-dock" aria-label="色"></aside>
 </div>
 
+<!-- アニメーションのコマの一覧（ヘッダーの 🎞 で出す・しまう。動きは anim.js） -->
+<div class="timeline" id="timeline" style="display:none">
+  <div class="timeline-group">
+    <button id="btn-anim-play" title="再生（コマを順に表示）">▶</button>
+    <label class="timeline-fps" title="1秒あたりのコマ数（再生とGIFの速さ）">
+      <input type="number" id="anim-fps" min="1" max="50" step="1" value="8"> fps
+    </label>
+    <span class="timeline-label" id="timeline-frame-label"></span>
+  </div>
+  <div class="timeline-frames" id="timeline-frames"></div>
+  <div class="timeline-group">
+    <button id="btn-frame-dup" title="今のコマを複製して、すぐ後ろに追加">＋ 複製</button>
+    <button id="btn-frame-new" title="中身が空のコマを、すぐ後ろに追加（レイヤーの並びは今のコマと同じ）">＋ 空</button>
+    <button id="btn-frame-left" title="今のコマを1つ前へ">◀</button>
+    <button id="btn-frame-right" title="今のコマを1つ後ろへ">▶</button>
+    <button id="btn-frame-delete" class="danger" title="今のコマを削除">🗑</button>
+    <button id="btn-gif-export" class="primary" title="全部のコマをGIFアニメとして保存">GIF保存</button>
+  </div>
+</div>
+
 <!-- スタートモーダル -->
 <div id="start-overlay">
   <div class="start-card">
@@ -596,6 +620,22 @@
     <div class="confirm-actions">
       <button id="btn-png-export-ok" class="primary">保存</button>
       <button id="btn-png-export-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="gif-export-modal" style="display:none">
+  <div class="confirm-card png-export-card">
+    <p>GIF保存</p>
+    <div class="gif-bg-row">
+      <button data-gif-bg="white">白い背景</button>
+      <button data-gif-bg="transparent">背景を透明にする</button>
+    </div>
+    <div class="png-scale-grid" id="gif-scale-grid"></div>
+    <div class="layer-hint png-export-hint" id="gif-export-info"></div>
+    <div class="confirm-actions">
+      <button id="btn-gif-export-ok" class="primary">保存</button>
+      <button id="btn-gif-export-cancel">キャンセル</button>
     </div>
   </div>
 </div>
@@ -767,6 +807,7 @@
 
 <script src="colorwheel.js"></script>
 <script src="script.js"></script>
+<script src="anim.js"></script>
 <script src="tablet.js"></script>
 <script src="tetris.js"></script>
 <script type="module" src="cloud.js"></script>
