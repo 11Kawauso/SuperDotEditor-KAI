@@ -1143,6 +1143,12 @@ input, select, textarea {
                     transparent 72%, var(--border-strong) 72%, var(--border-strong) 80%, transparent 80%);
 }
 
+/* ── AI との接続ボタン（URL に ?ai を付けたときだけ出る。ai-bridge.js） ── */
+.ai-bridge-btn { white-space: nowrap; transition: background 0.15s, box-shadow 0.15s; }
+.ai-bridge-btn[data-state="waiting"] { border-color: #e0a100; color: #8a6200; background: #fff7df; }
+.ai-bridge-btn[data-state="connected"] { border-color: #1f9d55; color: #fff; background: #1f9d55; }
+.ai-bridge-btn.busy { box-shadow: 0 0 0 3px rgba(31, 157, 85, 0.35); }
+
 /* ── アニメーションのコマの一覧（タイムライン） ── */
 #btn-toggle-timeline.active { background: var(--accent); border-color: var(--accent); }
 .timeline {

@@ -286,6 +286,15 @@
   btnLeft.addEventListener('click', () => { if (started) moveFrame(-1); });
   btnRight.addEventListener('click', () => { if (started) moveFrame(1); });
 
+  // AI との接続（ai-bridge.js）からコマを操作するための入り口
+  window.animApi = {
+    duplicateFrame,
+    addEmptyFrame,
+    deleteFrame,
+    selectFrame: i => { stopPlayback(); switchFrame(i); },
+    openTimeline: () => { if (timeline.style.display === 'none') setTimelineOpen(true); },
+  };
+
   // ── script.js からの知らせ ──
   window.onFramesReset = () => { stopPlayback(); fpsInput.value = animFps; renderTimeline(); };
   window.onFramesChanged = () => { stopPlayback(); renderTimeline(); };
