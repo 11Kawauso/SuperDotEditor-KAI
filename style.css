@@ -1148,6 +1148,16 @@ input, select, textarea {
 .ai-bridge-btn[data-state="waiting"] { border-color: #e0a100; color: #8a6200; background: #fff7df; }
 .ai-bridge-btn[data-state="connected"] { border-color: #1f9d55; color: #fff; background: #1f9d55; }
 .ai-bridge-btn.busy { box-shadow: 0 0 0 3px rgba(31, 157, 85, 0.35); }
+.ai-connect-card { max-width: min(440px, calc(100vw - 32px)); text-align: left; }
+.ai-connect-card > p { text-align: center; }
+.ai-beta { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #fff3cd; color: #8a6200; vertical-align: middle; }
+.ai-connect-body { display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.7; margin-bottom: 14px; }
+.ai-connect-body ol { margin: 0 0 0 1.4em; }
+.ai-connect-body a { color: #2563eb; }
+.ai-connect-note { font-size: 11px; color: var(--text-muted); }
+.ai-connect-status { font-size: 12px; padding: 6px 10px; border-radius: var(--radius); background: var(--bg); }
+.ai-connect-status[data-state="waiting"] { background: #fff7df; color: #8a6200; }
+.ai-connect-status[data-state="connected"] { background: #e3f6ea; color: #17733e; }
 
 /* ── アニメーションのコマの一覧（タイムライン） ── */
 #btn-toggle-timeline.active { background: var(--accent); border-color: var(--accent); }

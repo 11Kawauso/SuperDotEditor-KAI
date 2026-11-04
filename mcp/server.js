@@ -22,7 +22,7 @@ const ALLOWED_ORIGINS = (process.env.PIXELART_ALLOWED_ORIGINS || 'https://11kawa
 const isAllowedOrigin = origin => ALLOWED_ORIGINS.includes(origin)
   || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
 const REQUEST_TIMEOUT_MS = 30000;
-const SERVER_VERSION = '1.1.0';
+const SERVER_VERSION = '1.2.0';
 // export_png で保存してよいフォルダ（この中だけに書く）。初期値はユーザーのフォルダ全体
 const EXPORT_ROOTS = (process.env.PIXELART_EXPORT_DIRS || os.homedir())
   .split(path.delimiter).filter(Boolean).map(p => path.resolve(p));
@@ -46,6 +46,12 @@ Pixel-art tips:
 - Put the light source in one direction (usually top-left) and shade consistently.
 - Draw big shapes and the silhouette first, then details.
 - Use a separate layer (add_layer) for background, character, etc. when it helps.
+
+Characters (humanoids are the hardest):
+- Plan proportions first: e.g. a chibi sprite is 2-3 heads tall; decide head, body and leg heights in pixels before drawing.
+- Draw the silhouette as one flat color, check it with get_canvas_image, then add the outline, then shading and details.
+- Keep left/right symmetry for front views (draw one half and mirror it), and keep eyes simple (1-2 pixels wide each).
+- For several poses or frames, copy the previous frame (add_frame copy) and change only what moves.
 
 Game assets (Unity, Godot, etc.):
 - Save with export_png into the game project (e.g. Assets/Sprites/...). Use scale 1 and a transparent background.
@@ -379,9 +385,10 @@ function callEditor(method, params) {
   const target = page || relay;
   if (!target) {
     return Promise.reject(new Error(
-      'The editor is not connected. Ask the user to open SuperDotEditor-KAI with "?ai" at the end of the URL '
-      + '(https://11kawauso.github.io/SuperDotEditor-KAI/editor.html?ai) and press the 🤖 AI button. '
-      + '（エディタがつながっていません。URL の最後に ?ai を付けてエディタを開き、🤖 AI ボタンを押してください）'));
+      'The editor is not connected. Ask the user to open SuperDotEditor-KAI '
+      + '(https://11kawauso.github.io/SuperDotEditor-KAI/editor.html) in Chrome or Edge, '
+      + 'choose File > "AI に描いてもらう" and press "つなぐ". '
+      + '（エディタがつながっていません。エディタを開き、「ファイル ▸ AI に描いてもらう」で「つなぐ」を押してください）'));
   }
   const id = nextId++;
   return new Promise((resolve, reject) => {

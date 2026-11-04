@@ -2,14 +2,14 @@
 // AI のアプリ（Claude のデスクトップアプリなど）が起動した橋渡しのプログラムと、
 // パソコンの中だけの WebSocket（127.0.0.1）でつながり、AI からの命令（ドットを置く・今の絵を見る…）を
 // エディタの機能で実行して答えを返す。AI の操作は1回ごとに「元に戻す」で取り消せる。
-// 今は試験中のため、URL の最後に ?ai を付けて開いたときだけ、ヘッダーに 🤖 AI ボタンを出す。
+// 「ファイル ▸ AI に描いてもらう」の画面で「つなぐ」を押すまでは何もしない。
+// つないでいる間だけ、ヘッダーに状態のボタンを出す（URL に ?ai を付けて開くと、最初からつなぐ）。
 // script.js・anim.js のグローバルを使うため、それらの後に読み込むこと。
 (() => {
   const params = new URLSearchParams(location.search);
-  if (!params.has('ai')) return;
 
   // mcp/server.js と合わせる。?ai=17322 のように番号を付けると、そのポートにつなぐ（試すとき用）
-  const PORT = /^\d{4,5}$/.test(params.get('ai')) ? Number(params.get('ai')) : 17321;
+  const PORT = /^\d{4,5}$/.test(params.get('ai') || '') ? Number(params.get('ai')) : 17321;
   // つなぎ直す間隔。つながらない間は少しずつ延ばす（失敗のたびにブラウザが記録を出すため）
   const RETRY_MS = 3000, RETRY_MAX_MS = 10000;
   let retryMs = RETRY_MS;
@@ -28,15 +28,27 @@
   let retryTimer = null;
   let state = 'off'; // 'off' | 'waiting' | 'connected'
 
+  // 「ファイル ▸ AI に描いてもらう」の画面
+  const modal = document.getElementById('ai-connect-modal');
+  const modalStatus = document.getElementById('ai-connect-status');
+  const modalBtn = document.getElementById('btn-ai-connect');
+  const STATUS_TEXT = {
+    off: 'つないでいません',
+    waiting: '待機中：AI のアプリで橋渡しのプログラムが起動するのを待っています',
+    connected: 'つながっています。AI のチャットで描いてほしいものを頼んでください',
+  };
+
   function setState(s) {
     state = s;
     btn.dataset.state = s;
-    btn.textContent = s === 'connected' ? '🤖 AI 接続中' : s === 'waiting' ? '🤖 AI 待機中…' : '🤖 AI';
+    btn.style.display = s === 'off' ? 'none' : ''; // つないでいない間はヘッダーに出さない
+    btn.textContent = s === 'connected' ? '🤖 AI 接続中' : '🤖 AI 待機中…';
     btn.title = s === 'connected'
       ? 'AI とつながっています（押すと切ります）'
-      : s === 'waiting'
-        ? 'AI のアプリで、このエディタの道具（MCP）が起動するのを待っています（押すとやめます）'
-        : 'AI のアプリ（MCP）とつないで、チャットから絵を描いてもらう';
+      : 'AI のアプリで、このエディタの道具（MCP）が起動するのを待っています（押すとやめます）';
+    modalStatus.textContent = STATUS_TEXT[s];
+    modalStatus.dataset.state = s;
+    modalBtn.textContent = s === 'off' ? 'つなぐ' : '切る';
   }
 
   function connect() {
@@ -80,8 +92,16 @@
     }
   }
   btn.addEventListener('click', () => setEnabled(!enabled));
+  modalBtn.addEventListener('click', () => setEnabled(!enabled));
+  document.getElementById('btn-menu-ai').addEventListener('click', () => {
+    closeFileMenu();
+    modal.style.display = 'flex';
+  });
+  document.getElementById('btn-ai-connect-close').addEventListener('click', () => { modal.style.display = 'none'; });
   setState('off');
-  try { if (sessionStorage.getItem(ENABLED_KEY) === '1') setEnabled(true); } catch (err) { /* 読めなければ切ったまま */ }
+  let resume = params.has('ai');
+  try { if (sessionStorage.getItem(ENABLED_KEY) === '1') resume = true; } catch (err) { /* 読めなければ ?ai だけを見る */ }
+  if (resume) setEnabled(true);
 
   // ── 命令の実行 ──
   async function handleMessage(text) {

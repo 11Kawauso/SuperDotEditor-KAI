@@ -61,6 +61,7 @@
       <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
 
       <button id="btn-menu-timeline" class="menu-item" title="アニメーションのコマの一覧を出す・しまう">🎞 アニメーション（コマ）</button>
+      <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">🤖 AI に描いてもらう</button>
 
       <div id="save-menu-group">
         <button id="btn-menu-save" class="menu-item">💾 保存 ▸</button>
@@ -653,6 +654,28 @@
     <div class="confirm-actions">
       <button id="btn-png-export-ok" class="primary">保存</button>
       <button id="btn-png-export-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI に描いてもらう（ai-bridge.js） -->
+<div class="confirm-modal" id="ai-connect-modal" style="display:none">
+  <div class="confirm-card ai-connect-card">
+    <p>🤖 AI に描いてもらう <span class="ai-beta">試験中</span></p>
+    <div class="ai-connect-body">
+      <div>Claude などの AI のチャットから、このエディタを直接操作してドット絵を描いてもらえます。エフェクトやアイテム、アイコンが得意です。</div>
+      <ol>
+        <li>パソコンに <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js</a> を入れる</li>
+        <li><a href="mcp/server.js" download="server.js">橋渡しのプログラム（server.js）</a>をダウンロードして、AI のアプリに登録する</li>
+        <li>下の「つなぐ」を押して、AI のチャットで描いてほしいものを頼む</li>
+      </ol>
+      <div><a href="help.html#ai" target="_blank" rel="noopener">くわしい準備のしかた（ヘルプ）</a></div>
+      <div class="ai-connect-note">通信はこのパソコンの中だけで行います。描いた絵は、あなたが使う AI のアプリに渡ります。AI の操作は「元に戻す」で取り消せます。パソコン（Chrome・Edge）で使えます。</div>
+      <div class="ai-connect-status" id="ai-connect-status"></div>
+    </div>
+    <div class="confirm-actions">
+      <button id="btn-ai-connect" class="primary">つなぐ</button>
+      <button id="btn-ai-connect-close">閉じる</button>
     </div>
   </div>
 </div>

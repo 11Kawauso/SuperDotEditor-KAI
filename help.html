@@ -13,7 +13,7 @@
 
 <div class="legal">
   <h1>ヘルプ・使い方</h1>
-  <div class="legal-date">最終更新日：2026年10月6日</div>
+  <div class="legal-date">最終更新日：2026年11月4日</div>
 
   <p>
     スーパードットエディター・改の使い方をまとめたページです。
@@ -31,6 +31,7 @@
       <li><a href="#canvas">キャンバス</a></li>
       <li><a href="#image">画像を使う</a></li>
       <li><a href="#anim">アニメーション・GIF</a></li>
+      <li><a href="#ai">AI に描いてもらう</a></li>
       <li><a href="#save">保存する</a></li>
       <li><a href="#touch">スマホ・タブレットで使う</a></li>
       <li><a href="#peporis">おまけ：PEPORIS</a></li>
@@ -156,7 +157,50 @@
   </table>
   <p>一覧の小さな絵を押すと、そのコマに切り替わります。コマの操作も元に戻せます。</p>
 
-  <h2 id="save">9. 保存する</h2>
+  <h2 id="ai">9. AI に描いてもらう（試験中）</h2>
+  <p>
+    Claude などの AI のチャットから、このエディタを直接操作してドット絵を描いてもらえます。
+    「火の斬撃エフェクトを 64×64 で、7コマのアニメにして」のように頼むと、AI が自分で描いて、できた絵を見ながら直します。
+    エフェクト・アイテム・アイコンが得意で、人型のキャラクターはまだ苦手です。
+  </p>
+  <div class="legal-note">
+    使えるのはパソコン（Windows・Mac）の Chrome または Edge です。
+    通信はパソコンの中だけで行い、描いた絵はあなたが使う AI のアプリに渡ります。
+    AI の操作は、ふだんどおり「元に戻す」で取り消せます。
+  </div>
+  <h3>準備（最初の1回だけ）</h3>
+  <ol>
+    <li><a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js</a>（LTS 版）をインストールします。</li>
+    <li><a href="mcp/server.js" download="server.js">橋渡しのプログラム（server.js）</a>をダウンロードし、消さない場所に置きます（例：<code>C:\SuperDot\server.js</code>）。</li>
+    <li>
+      Claude のデスクトップアプリで「設定 ▸ 開発者 ▸ 構成を編集」を開き、次の内容を書き足して保存します
+      （<code>args</code> の中は、server.js を置いた場所に合わせてください。Windows では区切りの <code>\</code> を <code>\\</code> のように2つ重ねて書きます）。
+<pre class="help-code">{
+  "mcpServers": {
+    "superdot-editor": {
+      "command": "node",
+      "args": ["C:\\SuperDot\\server.js"]
+    }
+  }
+}</pre>
+      すでにほかの設定が書いてあるときは、いちばん外側の <code>{ }</code> の中に <code>"mcpServers": { ... }</code> を足します。
+    </li>
+    <li>Claude のアプリを完全に終了して、開き直します（タスクバーのアイコンを右クリック ▸ 終了）。</li>
+  </ol>
+  <p>Cursor・VS Code・Gemini CLI など、MCP に対応したほかの AI のアプリでも使えます。登録のしかたは <a href="https://github.com/11Kawauso/SuperDotEditor-KAI/blob/main/mcp/README.md" target="_blank" rel="noopener">mcp/README.md</a> を見てください。</p>
+  <h3>使い方</h3>
+  <ol>
+    <li>エディタで「📁 ファイル ▸ 🤖 AI に描いてもらう」を開き、「つなぐ」を押します（ブラウザに「ローカルネットワークへのアクセス」を聞かれたら許可します）。</li>
+    <li>画面の上に「🤖 AI 待機中…」が出て、AI のアプリが動いていれば、すぐ「🤖 AI 接続中」（緑）に変わります。</li>
+    <li>AI のチャットで「スーパードットエディターで、16×16 のスライムを描いて」のように頼みます。道具を使う許可を聞かれたら許可してください。</li>
+  </ol>
+  <h3>ゲームの素材にする</h3>
+  <p>
+    Unity などのゲームを作る AI にこの道具もつないでおくと、AI が素材を描いて、ゲームのフォルダに PNG（スプライトシート）で保存できます。
+    コマの大きさや表示時間を書いた <code>.json</code> も一緒に保存されます。
+  </p>
+
+  <h2 id="save">10. 保存する</h2>
   <p>「📁 ファイル ▸ 💾 保存」から選びます。</p>
   <table class="help-table">
     <tr><th>保存のしかた</th><th>内容</th></tr>
@@ -168,7 +212,7 @@
   </table>
   <p>描いている内容は、このブラウザに<b>自動保存</b>されています。次に開いたとき「前回の続きから」で再開できます。</p>
 
-  <h2 id="touch">10. スマホ・タブレットで使う</h2>
+  <h2 id="touch">11. スマホ・タブレットで使う</h2>
   <ul>
     <li>ボタンを長押しすると、そのボタンの説明が出ます。</li>
     <li>スマホでは、画面の左の端の ◀ ▶ で道具のパネルを出す・しまうを切り替えます。</li>
@@ -177,7 +221,7 @@
     <li>2本指でピンチすると拡大縮小、2本指で動かすとキャンバスの移動です。</li>
   </ul>
 
-  <h2 id="peporis">11. おまけ：PEPORIS</h2>
+  <h2 id="peporis">12. おまけ：PEPORIS</h2>
   <p>
     右下のブロックのボタンで、今のキャンバスの大きさを盤面にしたテトリス風のゲームが遊べます。
     メニューの <b>BLOCKS</b> で出てくるブロックを選んだり、自分で描いたブロック（カスタムブロック、10個まで）を使ったりできます。
@@ -194,7 +238,7 @@
     <tr><td>Esc</td><td>ポーズ</td></tr>
   </table>
 
-  <h2 id="keys">12. キーボードショートカット</h2>
+  <h2 id="keys">13. キーボードショートカット</h2>
   <table class="help-table">
     <tr><th>キー</th><th>操作</th></tr>
     <tr><td>Q / W / A / S / V</td><td>ペン / 塗り潰し / 消しゴム / スポイト / 移動</td></tr>
@@ -208,7 +252,7 @@
   </table>
   <p>Mac では Ctrl の代わりに ⌘ を使います。</p>
 
-  <h2 id="faq">13. 困ったとき</h2>
+  <h2 id="faq">14. 困ったとき</h2>
   <h3>描いた絵が消えてしまった</h3>
   <p>同じブラウザでエディタを開き直し、「前回の続きから」を押してください。自動保存された作品が開きます。大事な作品は「作品ファイルとして保存」やクラウド保存もしておくと安心です。</p>
   <h3>描けない</h3>
