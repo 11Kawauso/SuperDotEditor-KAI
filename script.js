@@ -4074,6 +4074,24 @@ document.getElementById('btn-png-export-cancel').addEventListener('click', () =>
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const convertResizeCanvasCheckbox = document.getElementById('convert-resize-canvas');
+const convertRemoveBgCheckbox = document.getElementById('convert-remove-bg');
+const convertOutlineCheckbox = document.getElementById('convert-outline');
+const convertOutlineOptions = document.getElementById('convert-outline-options');
+convertOutlineCheckbox.addEventListener('change', () => {
+  convertOutlineOptions.style.display = convertOutlineCheckbox.checked ? '' : 'none';
+});
+document.querySelectorAll('[data-outline-color]').forEach(b => b.addEventListener('click', () => {
+  convertOutlineColorMode = b.dataset.outlineColor;
+  document.querySelectorAll('[data-outline-color]').forEach(x => x.classList.toggle('active', x === b));
+}));
+// 色を選んだら「1色」に切り替える
+document.getElementById('convert-outline-hex').addEventListener('input', () => {
+  document.querySelector('[data-outline-color="fixed"]').click();
+});
+document.querySelectorAll('[data-outline-inner]').forEach(b => b.addEventListener('click', () => {
+  convertOutlineInner = b.dataset.outlineInner;
+  document.querySelectorAll('[data-outline-inner]').forEach(x => x.classList.toggle('active', x === b));
+}));
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.background = '#f0f0ee'; });
@@ -4337,8 +4355,160 @@ function convertImage(img) {
   } else {
     quantizeColors(convertColorCount);
   }
+  const removeBg = convertRemoveBgCheckbox.checked;
+  const outline = convertOutlineCheckbox.checked;
+  if (removeBg || outline) {
+    const { hasBackground } = finishConvertedArt(img, destC0, destR0, destW, destH, { removeBg, outline });
+    // 線の色も「指定した色だけ」に合わせる
+    if (outline && fixedPalette && fixedPalette.length) applyFixedPalette(fixedPalette);
+    if (!hasBackground) {
+      showToast(removeBg && outline
+        ? '背景が1色ではないため、背景を消せず、外側の輪郭線も付けませんでした'
+        : removeBg ? '背景が1色ではないため、背景を消せませんでした'
+        : '背景が透明でも1色でもないため、外側の輪郭線は付けませんでした');
+    }
+  }
   drawCells();
   updateLayerThumbnails();
+}
+
+// ── 変換した絵の仕上げ（背景を消す・輪郭線を付ける） ──
+// 小さく縮めると、元の絵の細い線は周りの色と混ざって消え、キャラが背景に溶けてしまう。
+// そこで元の大きな画像から「キャラと背景の境目」と「色がはっきり変わる所」を調べ、
+// 変換した絵の対応するマスを直す。
+//   背景を消す：背景が1色の画像で、背景のマスを透明にする（透明な画像はもともと透明）
+//   外側の線：キャラの外側に1マスの線を付ける（背景が透明か1色の画像だけ）
+//   内側の線：髪と顔の境目など、元の画像で色がはっきり変わる所に線を付ける
+// 線の色は「隣の色を暗くした色」（なじみやすい）か、決めた1色。
+const OUTLINE_INNER_THRESHOLDS = { low: 330, mid: 240, high: 170 }; // 内側の線の量ごとの、色の変わり方のしきい値
+let convertOutlineColorMode = 'auto';  // 'auto'（隣の色を暗く）| 'fixed'（1色）
+let convertOutlineInner = 'mid';       // 'none' | 'low' | 'mid' | 'high'
+
+function finishConvertedArt(img, x0, y0, w, h, { removeBg, outline }) {
+  // 元の画像を、1マスあたり S×S ピクセルの大きさで描いて調べる（大きすぎると重いので上限あり）
+  const S = Math.max(1, Math.min(8, Math.floor(2048 / Math.max(w, h))));
+  const W = w * S, H = h * S;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  const d = ctx.getImageData(0, 0, W, H).data;
+
+  // キャラの部分（1）と背景（0）
+  const fg = new Uint8Array(W * H);
+  let transparent = 0;
+  for (let i = 0; i < W * H; i++) {
+    if (d[i * 4 + 3] >= 128) fg[i] = 1; else transparent++;
+  }
+  // ほとんど透明な所が無ければ、画像の端の色を背景として、端からつながる似た色を背景にする
+  let hasBackground = transparent >= W * H * 0.01;
+  if (!hasBackground) hasBackground = markPlainBackground(d, W, H, fg);
+
+  // マスごとに、キャラの部分かどうか（半分以上がキャラならキャラ）
+  const cellFg = new Uint8Array(w * h);
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      let n = 0;
+      for (let py = r * S; py < (r + 1) * S; py++) for (let px = c * S; px < (c + 1) * S; px++) n += fg[py * W + px];
+      cellFg[r * w + c] = n * 2 >= S * S ? 1 : 0;
+    }
+  }
+  const isFg = (c, r) => c >= 0 && r >= 0 && c < w && r < h && cellFg[r * w + c] === 1;
+  if (removeBg && hasBackground) {
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!cellFg[r * w + c]) cells[y0 + r][x0 + c] = null;
+  }
+  if (!outline) return { hasBackground };
+  const lineHex = document.getElementById('convert-outline-hex').value;
+  const darker = (hex, f) => '#' + [1, 3, 5].map(i =>
+    Math.round(parseInt(hex.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('');
+  const updates = [];
+
+  // 内側の線：色の変わり方（Sobel）をマスごとにまとめ、線の向きに直角な隣より強いマスだけに引く（太くならないように）
+  if (convertOutlineInner !== 'none') {
+    const thr = OUTLINE_INNER_THRESHOLDS[convertOutlineInner];
+    const score = new Float32Array(w * h);
+    const horiz = new Uint8Array(w * h); // 色が左右で変わる（縦の線）なら1
+    const rowB = W * 4;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const o = y * W + x;
+        // キャラの外枠の近くは外側の線に任せる
+        if (!(fg[o - W - 1] & fg[o - W] & fg[o - W + 1] & fg[o - 1] & fg[o] & fg[o + 1] & fg[o + W - 1] & fg[o + W] & fg[o + W + 1])) continue;
+        let gx = 0, gy = 0, best = 0;
+        for (let ch = 0; ch < 3; ch++) {
+          const q = o * 4 + ch; // 真ん中の画素のこの色の位置
+          const tl = d[q - rowB - 4], tc = d[q - rowB], tr = d[q - rowB + 4];
+          const ml = d[q - 4], mr = d[q + 4];
+          const bl = d[q + rowB - 4], bc = d[q + rowB], br = d[q + rowB + 4];
+          const sx = tr + 2 * mr + br - tl - 2 * ml - bl;
+          const sy = bl + 2 * bc + br - tl - 2 * tc - tr;
+          const mag = Math.sqrt(sx * sx + sy * sy);
+          if (mag > best) { best = mag; gx = sx; gy = sy; }
+        }
+        const i = Math.floor(y / S) * w + Math.floor(x / S);
+        if (best > score[i]) { score[i] = best; horiz[i] = Math.abs(gx) >= Math.abs(gy) ? 1 : 0; }
+      }
+    }
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        const i = r * w + c;
+        if (!cellFg[i] || score[i] < thr) continue;
+        // キャラの外枠に接するマスは、外側の線と重なって太くなるので引かない
+        if (hasBackground && (!isFg(c - 1, r) || !isFg(c + 1, r) || !isFg(c, r - 1) || !isFg(c, r + 1))) continue;
+        const [a, b] = horiz[i] ? [[c - 1, r], [c + 1, r]] : [[c, r - 1], [c, r + 1]];
+        const sa = isFg(...a) ? score[a[1] * w + a[0]] : 0;
+        const sb = isFg(...b) ? score[b[1] * w + b[0]] : 0;
+        if (score[i] < sa || score[i] <= sb) continue;
+        const own = cells[y0 + r][x0 + c];
+        if (!own) continue;
+        updates.push([c, r, convertOutlineColorMode === 'auto' ? darker(own, 0.55) : lineHex]);
+      }
+    }
+  }
+
+  // 外側の線：背景のマスのうち、上下左右のどれかがキャラのマス
+  if (hasBackground) {
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        if (cellFg[r * w + c]) continue;
+        const nb = [[c - 1, r], [c + 1, r], [c, r - 1], [c, r + 1]].find(([cc, rr]) => isFg(cc, rr));
+        if (!nb) continue;
+        const base = cells[y0 + nb[1]][x0 + nb[0]];
+        updates.push([c, r, convertOutlineColorMode === 'auto' && base ? darker(base, 0.4) : lineHex]);
+      }
+    }
+  }
+  for (const [c, r, hex] of updates) cells[y0 + r][x0 + c] = hex;
+  return { hasBackground };
+}
+
+// 画像の端の色がほぼ1色なら、それを背景の色として、端からつながる似た色を背景（fg=0）にする。
+// 端の色がばらばら（写真など）なら背景を見分けられないので false を返す
+function markPlainBackground(d, W, H, fg) {
+  const border = [];
+  for (let x = 0; x < W; x++) border.push(x, (H - 1) * W + x);
+  for (let y = 1; y < H - 1; y++) border.push(y * W, y * W + W - 1);
+  const ch = (i, k) => d[i * 4 + k];
+  // 端の色の中央値を背景の色とする
+  const med = [0, 1, 2].map(k => {
+    const v = border.map(i => ch(i, k)).sort((a, b) => a - b);
+    return v[v.length >> 1];
+  });
+  const TOL = 48;
+  const near = i => Math.abs(ch(i, 0) - med[0]) + Math.abs(ch(i, 1) - med[1]) + Math.abs(ch(i, 2) - med[2]) <= TOL;
+  if (border.filter(near).length < border.length * 0.8) return false;
+  const seen = new Uint8Array(W * H);
+  const stack = border.filter(i => near(i) && !seen[i] && (seen[i] = 1));
+  while (stack.length) {
+    const i = stack.pop();
+    fg[i] = 0;
+    const x = i % W, y = (i - x) / W;
+    if (x > 0 && !seen[i - 1] && near(i - 1)) { seen[i - 1] = 1; stack.push(i - 1); }
+    if (x < W - 1 && !seen[i + 1] && near(i + 1)) { seen[i + 1] = 1; stack.push(i + 1); }
+    if (y > 0 && !seen[i - W] && near(i - W)) { seen[i - W] = 1; stack.push(i - W); }
+    if (y < H - 1 && !seen[i + W] && near(i + W)) { seen[i + W] = 1; stack.push(i + W); }
+  }
+  return true;
 }
 
 function quantizeColors(maxColors) {

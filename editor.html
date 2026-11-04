@@ -332,6 +332,32 @@
           <div class="layer-hint" id="convert-palette-hint">＋から色を追加してください</div>
         </div>
 
+        <!-- 仕上げ：背景を消す・輪郭線（script.js の finishConvertedArt） -->
+        <label class="convert-check" title="背景が1色の画像で、背景を透明にします（透明な画像はそのまま）">
+          <input type="checkbox" id="convert-remove-bg" style="accent-color:var(--accent)">
+          背景を消す（背景が1色の画像）
+        </label>
+        <label class="convert-check" title="縮めると消えてしまう線を、元の画像から調べて描き足します">
+          <input type="checkbox" id="convert-outline" style="accent-color:var(--accent)">
+          輪郭線を付ける
+        </label>
+        <div id="convert-outline-options" class="convert-outline-options" style="display:none;">
+          <div class="panel-label" style="margin-bottom:4px;">線の色</div>
+          <div class="outline-color-row">
+            <button class="outline-opt active" data-outline-color="auto" title="隣の色を暗くした色で、なじむ線にします">隣の色を暗く</button>
+            <button class="outline-opt" data-outline-color="fixed" title="右の色1色で線を引きます">1色</button>
+            <input type="color" id="convert-outline-hex" value="#1e1e2a" title="線の色">
+          </div>
+          <div class="panel-label" style="margin:6px 0 4px;">内側の線</div>
+          <div class="outline-inner-row">
+            <button class="outline-opt" data-outline-inner="none">なし</button>
+            <button class="outline-opt" data-outline-inner="low">少なめ</button>
+            <button class="outline-opt active" data-outline-inner="mid">普通</button>
+            <button class="outline-opt" data-outline-inner="high">多め</button>
+          </div>
+          <div class="layer-hint">外側の線は、背景が透明か1色の画像で付きます</div>
+        </div>
+
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:8px;">
           <input type="checkbox" id="convert-resize-canvas" checked style="accent-color:var(--accent)">
           画像サイズに合わせてキャンバスサイズを変更

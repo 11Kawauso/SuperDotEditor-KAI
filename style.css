@@ -645,6 +645,27 @@ input, select, textarea {
   color: #fff;
   border-color: var(--accent);
 }
+/* 画像から変換の仕上げ（背景を消す・輪郭線） */
+.convert-check { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-top: 6px; }
+.convert-outline-options {
+  margin: 6px 0 0 4px;
+  padding: 8px;
+  border-left: 2px solid var(--border-strong);
+}
+.outline-color-row { display: flex; gap: 4px; align-items: center; }
+.outline-inner-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.outline-opt { height: 26px; font-size: 11px; padding: 0 6px; justify-content: center; flex: 1; }
+.outline-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+#convert-outline-hex {
+  width: 32px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 /* ── 定規（キャンバスの上辺と左辺に付く） ──
    位置と大きさはscript.jsがキャンバスに合わせて毎回指定する。
