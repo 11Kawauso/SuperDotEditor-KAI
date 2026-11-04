@@ -12,6 +12,9 @@
 
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const PORT = Number(process.env.PIXELART_BRIDGE_PORT) || 17321;
 // エディタとして接続を受け付けるページ（ほかのサイトがつないで AI に偽の答えを返せないように）
@@ -19,7 +22,10 @@ const ALLOWED_ORIGINS = (process.env.PIXELART_ALLOWED_ORIGINS || 'https://11kawa
 const isAllowedOrigin = origin => ALLOWED_ORIGINS.includes(origin)
   || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
 const REQUEST_TIMEOUT_MS = 30000;
-const SERVER_VERSION = '1.0.0';
+const SERVER_VERSION = '1.1.0';
+// export_png で保存してよいフォルダ（この中だけに書く）。初期値はユーザーのフォルダ全体
+const EXPORT_ROOTS = (process.env.PIXELART_EXPORT_DIRS || os.homedir())
+  .split(path.delimiter).filter(Boolean).map(p => path.resolve(p));
 
 const log = (...a) => process.stderr.write(`[superdot-bridge] ${a.join(' ')}\n`);
 
@@ -39,7 +45,14 @@ Pixel-art tips:
 - Avoid lonely stray pixels and jagged single-pixel steps in curves ("jaggies"); use consistent line steps (1-1, 2-2, 2-1).
 - Put the light source in one direction (usually top-left) and shade consistently.
 - Draw big shapes and the silhouette first, then details.
-- Use a separate layer (add_layer) for background, character, etc. when it helps.`;
+- Use a separate layer (add_layer) for background, character, etc. when it helps.
+
+Game assets (Unity, Godot, etc.):
+- Save with export_png into the game project (e.g. Assets/Sprites/...). Use scale 1 and a transparent background.
+- For animations use frames "all" + layout "sheet": the frames are placed left to right, and a .json next to the PNG
+  records frameWidth/frameHeight, the frame count and each frame's duration in ms.
+- In Unity import the sheet with Texture Type = Sprite, Sprite Mode = Multiple, Filter Mode = Point (no filter),
+  Compression = None, then slice it by cell size (frameWidth x frameHeight). Pixels Per Unit = the size of one tile.`;
 
 // ── 道具の一覧（AI に見せる説明と、受け取る値の形） ──
 const color = { type: 'string', description: 'Color as #rrggbb' };
@@ -192,7 +205,93 @@ const TOOLS = [
     description: 'Undo the last change.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'export_png',
+    description: 'Save the artwork as PNG file(s) on the user\'s computer, e.g. into a game project\'s asset folder. '
+      + 'frames "current" saves the current frame; "all" saves every animation frame, either as one horizontal sprite sheet '
+      + '(layout "sheet") or as numbered files name_00.png, name_01.png ... (layout "sequence"). '
+      + 'A .json with frame size, count and durations is saved next to it. Existing files are not overwritten unless overwrite is true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path of the .png file to write (for "sequence", the base name)' },
+        frames: { type: 'string', enum: ['current', 'all'], description: 'Default "current"' },
+        layout: { type: 'string', enum: ['sheet', 'sequence'], description: 'For frames "all". Default "sheet"' },
+        columns: { type: 'integer', description: 'Sheet: frames per row (default: all in one row)' },
+        scale: { type: 'integer', description: 'Integer scale 1-16 (default 1 = one pixel per dot, best for games)' },
+        background: { type: 'string', enum: ['transparent', 'white'], description: 'Default "transparent"' },
+        metadata: { type: 'boolean', description: 'Also write a .json with frame info (default true)' },
+        overwrite: { type: 'boolean', description: 'Replace existing files (default false)' },
+      },
+      required: ['path'],
+    },
+  },
 ];
+
+// ── export_png：エディタが作った PNG を、決めたフォルダの中にだけ保存する ──
+function checkExportPath(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) throw new Error('path must be an absolute file path, e.g. C:\\Game\\Assets\\Sprites\\slash.png');
+  const full = path.resolve(p);
+  if (path.extname(full).toLowerCase() !== '.png') throw new Error('path must end with .png');
+  // Windows はフォルダ名の大文字・小文字を区別しないので、そろえてから比べる
+  const norm = p2 => (process.platform === 'win32' ? p2.toLowerCase() : p2);
+  const inside = EXPORT_ROOTS.some(root => {
+    const r = norm(root), f = norm(full);
+    return f.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+  });
+  if (!inside) {
+    throw new Error(`Saving is only allowed inside: ${EXPORT_ROOTS.join(', ')} (set PIXELART_EXPORT_DIRS to change this)`);
+  }
+  return full;
+}
+
+async function exportPng(args) {
+  const full = checkExportPath(args.path);
+  const frames = args.frames === 'all' ? 'all' : 'current';
+  const layout = frames === 'all' && args.layout === 'sequence' ? 'sequence' : 'sheet';
+  const result = await callEditor('export_png', {
+    frames, layout,
+    columns: args.columns,
+    scale: args.scale,
+    background: args.background === 'white' ? 'white' : 'transparent',
+  });
+  // 書くファイルの一覧を先に決め、上書きになるなら何も書かずに止める
+  const base = full.slice(0, -path.extname(full).length);
+  const digits = Math.max(2, String(result.images.length - 1).length); // 連番は 00, 01 … と桁をそろえる
+  const pngPaths = layout === 'sequence'
+    ? result.images.map((_, i) => `${base}_${String(i).padStart(digits, '0')}.png`)
+    : [full];
+  const jsonPath = `${base}.json`;
+  const writeMeta = args.metadata !== false;
+  const targets = writeMeta ? [...pngPaths, jsonPath] : pngPaths;
+  if (!args.overwrite) {
+    const exists = targets.filter(f => fs.existsSync(f));
+    if (exists.length) throw new Error(`These files already exist (use overwrite: true to replace): ${exists.join(', ')}`);
+  }
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  pngPaths.forEach((f, i) => fs.writeFileSync(f, Buffer.from(result.images[i], 'base64')));
+  if (writeMeta) {
+    const meta = {
+      source: 'SuperDotEditor-KAI',
+      images: pngPaths.map(f => path.basename(f)),
+      layout,
+      frameWidth: result.frameWidth,
+      frameHeight: result.frameHeight,
+      frameCount: result.frameCount,
+      columns: result.columns,
+      rows: result.rows,
+      scale: result.scale,
+      fps: result.fps,
+      durationsMs: result.durationsMs,
+    };
+    fs.writeFileSync(jsonPath, JSON.stringify(meta, null, 2) + '\n');
+  }
+  return {
+    text: `Saved ${targets.length} file(s):\n${targets.join('\n')}\n`
+      + `frame ${result.frameWidth}x${result.frameHeight}px, ${result.frameCount} frame(s)`
+      + (layout === 'sheet' && result.frameCount > 1 ? `, sheet ${result.columns} column(s) x ${result.rows} row(s)` : ''),
+  };
+}
 
 // ── WebSocket（エディタとの通信）。Node.js だけで動くよう、必要な分だけ自前で書く ──
 let page = null;            // つながっているエディタ { socket, send }
@@ -321,7 +420,7 @@ function replyError(id, code, message) { process.stdout.write(JSON.stringify({ j
 async function handleToolCall(name, args) {
   if (!TOOLS.some(t => t.name === name)) throw new Error(`Unknown tool: ${name}`);
   if (portError) throw new Error(portError);
-  const result = await callEditor(name, args || {});
+  const result = name === 'export_png' ? await exportPng(args || {}) : await callEditor(name, args || {});
   // エディタからの答えを MCP の形にする（画像はそのまま画像として渡す）
   const content = [];
   if (result && result.image) content.push({ type: 'image', data: result.image, mimeType: 'image/png' });

@@ -5,9 +5,11 @@
 // 今は試験中のため、URL の最後に ?ai を付けて開いたときだけ、ヘッダーに 🤖 AI ボタンを出す。
 // script.js・anim.js のグローバルを使うため、それらの後に読み込むこと。
 (() => {
-  if (!new URLSearchParams(location.search).has('ai')) return;
+  const params = new URLSearchParams(location.search);
+  if (!params.has('ai')) return;
 
-  const PORT = 17321;               // mcp/server.js と合わせる
+  // mcp/server.js と合わせる。?ai=17322 のように番号を付けると、そのポートにつなぐ（試すとき用）
+  const PORT = /^\d{4,5}$/.test(params.get('ai')) ? Number(params.get('ai')) : 17321;
   // つなぎ直す間隔。つながらない間は少しずつ延ばす（失敗のたびにブラウザが記録を出すため）
   const RETRY_MS = 3000, RETRY_MAX_MS = 10000;
   let retryMs = RETRY_MS;
@@ -353,5 +355,62 @@
       undo();
       return { text: 'Undid the last change.' };
     },
+
+    // 書き出し用の PNG を作る（ファイルへの保存は mcp/server.js が行う）
+    export_png: ({ frames: which = 'current', layout = 'sheet', columns, scale = 1, background = 'transparent' }) => {
+      const s = Math.max(1, Math.min(16, Math.round(scale) || 1));
+      const fw = cols * s, fh = rows * s;
+      frames[currentFrame].active = activeLayerIndex;
+      const list = which === 'all' ? frames.map((_, i) => i) : [currentFrame];
+      const draw = (ctx, i, ox, oy) => {
+        if (background === 'white') { ctx.fillStyle = '#ffffff'; ctx.fillRect(ox, oy, fw, fh); }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(frameCanvas(frames[i]), 0, 0, cols, rows, ox, oy, fw, fh);
+      };
+      const toB64 = cv => cv.toDataURL('image/png').split(',')[1];
+      const durationsMs = list.map(i => Math.round(frames[i].delay || 1000 / animFps));
+      const info = { frameWidth: fw, frameHeight: fh, frameCount: list.length, scale: s, fps: animFps, durationsMs };
+      if (layout === 'sequence') {
+        const images = list.map(i => {
+          const cv = document.createElement('canvas');
+          cv.width = fw; cv.height = fh;
+          draw(cv.getContext('2d'), i, 0, 0);
+          return toB64(cv);
+        });
+        return { ...info, images, columns: 1, rows: 1 };
+      }
+      // スプライトシート：左から右へ、columns ごとに折り返す
+      const ncol = Math.max(1, Math.min(list.length, Math.round(columns) || list.length));
+      const nrow = Math.ceil(list.length / ncol);
+      if (fw * ncol > 8192 || fh * nrow > 8192) throw new Error('The sheet would be larger than 8192px. Use a smaller scale, more rows (columns), or layout "sequence".');
+      const cv = document.createElement('canvas');
+      cv.width = fw * ncol; cv.height = fh * nrow;
+      const ctx = cv.getContext('2d');
+      list.forEach((fi, k) => draw(ctx, fi, (k % ncol) * fw, Math.floor(k / ncol) * fh));
+      return { ...info, images: [toB64(cv)], columns: ncol, rows: nrow };
+    },
   };
+
+  // あるコマの絵（見えているレイヤーを不透明度込みで重ねた色）を、1ドット＝1ピクセルで描いたキャンバス。
+  // PNG保存（compositeAt）と同じ重ね方にする
+  function frameCanvas(frame) {
+    const cv = document.createElement('canvas');
+    cv.width = cols; cv.height = rows;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(cols, rows);
+    const px = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        let out = null;
+        for (const l of frame.layers) {
+          if (!l.visible || l.opacity <= 0) continue;
+          const v = l.cells[y] && l.cells[y][x];
+          if (v) out = blendHex(out, v, l.opacity);
+        }
+        if (out) px[y * cols + x] = hexToU32(out);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
 })();
