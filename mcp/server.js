@@ -308,7 +308,8 @@ function encodeFrame(text) {
   return Buffer.concat([header, payload]);
 }
 
-function attachSocket(socket) {
+// onMessage(conn, text)：届いた文字のメッセージ / onClose(conn)：切れたとき
+function attachSocket(socket, onMessage, onClose) {
   let buf = Buffer.alloc(0);
   let fragments = [];
   const conn = {
@@ -343,23 +344,17 @@ function attachSocket(socket) {
         if (!fin) continue;
         const text = Buffer.concat(fragments).toString('utf8');
         fragments = [];
-        onPageMessage(conn, text);
+        onMessage(conn, text);
       }
     }
   });
-  socket.on('close', () => {
-    if (page === conn) {
-      page = null;
-      log('editor disconnected');
-      for (const [, p] of pending) { clearTimeout(p.timer); p.reject(new Error('エディタとの接続が切れました')); }
-      pending.clear();
-    }
-  });
+  socket.on('close', () => onClose(conn));
   socket.on('error', () => {});
   return conn;
 }
 
-function onPageMessage(conn, text) {
+// 送った命令の答えを受け取る（エディタからでも、ほかの橋渡し経由でも同じ形）
+function onReply(text) {
   let msg;
   try { msg = JSON.parse(text); } catch { return; }
   if (msg.type === 'hello') { log(`editor connected (${msg.cols}x${msg.rows})`); return; }
@@ -370,8 +365,19 @@ function onPageMessage(conn, text) {
   if (msg.error) p.reject(new Error(msg.error)); else p.resolve(msg.result);
 }
 
+function failPending(message) {
+  for (const [, p] of pending) { clearTimeout(p.timer); p.reject(new Error(message)); }
+  pending.clear();
+}
+
+// ── 同じ橋渡しが2つ以上動いているとき（チャットと Code の両方で使うときなど） ──
+// 先に起動したほうがポートを持つ「親」になり、エディタとつながる。あとから起動したほうは
+// 親に「中継」としてつなぎ、命令を親経由でエディタへ送る。親が終わったら、残ったほうが親になる。
+let relay = null; // 親への中継（あとから起動したほうだけ使う）
+
 function callEditor(method, params) {
-  if (!page) {
+  const target = page || relay;
+  if (!target) {
     return Promise.reject(new Error(
       'The editor is not connected. Ask the user to open SuperDotEditor-KAI with "?ai" at the end of the URL '
       + '(https://11kawauso.github.io/SuperDotEditor-KAI/editor.html?ai) and press the 🤖 AI button. '
@@ -381,18 +387,19 @@ function callEditor(method, params) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('エディタからの返事がありません（タイムアウト）')); }, REQUEST_TIMEOUT_MS);
     pending.set(id, { resolve, reject, timer });
-    page.send({ id, method, params: params || {} });
+    target.send({ id, method, params: params || {} });
   });
 }
 
-let portError = null;
 const httpServer = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('SuperDotEditor-KAI AI bridge is running.\n');
 });
 httpServer.on('upgrade', (req, socket) => {
   const origin = req.headers.origin;
-  if (!isAllowedOrigin(origin) || (req.headers.upgrade || '').toLowerCase() !== 'websocket') {
+  // 中継：このパソコンの別の橋渡し（ブラウザではないので Origin が無い）
+  const isRelay = req.url === '/relay' && !origin;
+  if ((!isRelay && !isAllowedOrigin(origin)) || (req.headers.upgrade || '').toLowerCase() !== 'websocket') {
     log(`rejected connection from ${origin}`);
     socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
     return;
@@ -401,17 +408,64 @@ httpServer.on('upgrade', (req, socket) => {
     .update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
     + `Sec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  if (isRelay) {
+    log('another bridge connected as a relay');
+    // 中継から来た命令をエディタへ送り、答えを中継へ返す
+    attachSocket(socket, (conn, text) => {
+      let msg;
+      try { msg = JSON.parse(text); } catch { return; }
+      callEditor(msg.method, msg.params)
+        .then(result => conn.send({ id: msg.id, result }))
+        .catch(err => conn.send({ id: msg.id, error: String(err.message || err) }));
+    }, () => {});
+    return;
+  }
   // 新しくつながったエディタを使う（前のタブは閉じる）
   if (page) page.socket.end();
-  page = attachSocket(socket);
+  page = attachSocket(socket, (conn, text) => onReply(text), conn => {
+    if (page !== conn) return;
+    page = null;
+    log('editor disconnected');
+    failPending('エディタとの接続が切れました');
+  });
 });
-httpServer.on('error', err => {
-  portError = err.code === 'EADDRINUSE'
-    ? `Port ${PORT} is already in use (another AI app may already be running this bridge). Close the other app, or set PIXELART_BRIDGE_PORT.`
-    : String(err.message);
-  log(portError);
-});
-httpServer.listen(PORT, '127.0.0.1', () => log(`waiting for the editor on ws://127.0.0.1:${PORT}`));
+
+function startHub() {
+  if (httpServer.listening) return; // もう親になっている
+  httpServer.once('error', err => {
+    if (err.code !== 'EADDRINUSE') { log(String(err.message)); return; }
+    connectRelay();
+  });
+  httpServer.listen(PORT, '127.0.0.1');
+}
+// listen の完了の知らせは、失敗した前回の分も残るので、ここで1回だけ受け取る
+httpServer.on('listening', () => log(`waiting for the editor on ws://127.0.0.1:${PORT}`));
+
+function connectRelay() {
+  if (typeof WebSocket !== 'function') {
+    log(`Port ${PORT} is already in use, and this Node.js is too old to relay (needs Node 22+).`);
+    return;
+  }
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/relay`);
+  ws.onopen = () => {
+    relay = { send: obj => ws.send(JSON.stringify(obj)) };
+    log(`port ${PORT} is used by another bridge; relaying through it`);
+  };
+  ws.onmessage = e => onReply(String(e.data));
+  let closed = false;
+  ws.onclose = () => {
+    if (closed) return;
+    closed = true;
+    const was = relay;
+    relay = null;
+    if (was) failPending('ほかの橋渡しとの接続が切れました。もう一度試してください');
+    // 親が終わったら、自分が親になれるか試す（だめなら、また中継としてつなぐ）
+    setTimeout(startHub, 1000);
+  };
+  ws.onerror = () => {};
+}
+
+startHub();
 
 // ── MCP（AI のアプリとの通信。標準入出力で1行に1つの JSON-RPC） ──
 function reply(id, result) { process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n'); }
@@ -419,7 +473,6 @@ function replyError(id, code, message) { process.stdout.write(JSON.stringify({ j
 
 async function handleToolCall(name, args) {
   if (!TOOLS.some(t => t.name === name)) throw new Error(`Unknown tool: ${name}`);
-  if (portError) throw new Error(portError);
   const result = name === 'export_png' ? await exportPng(args || {}) : await callEditor(name, args || {});
   // エディタからの答えを MCP の形にする（画像はそのまま画像として渡す）
   const content = [];
