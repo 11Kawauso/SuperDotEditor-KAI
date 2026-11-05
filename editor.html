@@ -121,7 +121,8 @@
         <button class="tool-btn" data-tool="fill" title="塗り潰し（W）">🪣 塗り潰し<kbd class="key-hint">W</kbd></button>
         <button class="tool-btn" data-tool="erase" title="消しゴム（A）">🧹 消しゴム<kbd class="key-hint">A</kbd></button>
         <button class="tool-btn" data-tool="pick" title="スポイト（S）">💉 スポイト<kbd class="key-hint">S</kbd></button>
-        <button class="tool-btn" data-tool="move" title="移動（V）：選択範囲の中身（選択が無ければレイヤー全体）をドラッグや矢印キーで動かします" style="grid-column: span 2;">✥ 移動<kbd class="key-hint">V</kbd></button>
+        <button class="tool-btn" data-tool="move" title="移動（V）：選択範囲の中身（選択が無ければレイヤー全体）をドラッグや矢印キーで動かします">✥ 移動<kbd class="key-hint">V</kbd></button>
+        <button class="tool-btn" data-tool="bone" title="ボーン（B）：部品ごとのレイヤーに骨を入れて、ポーズを付けたりコマを作ったりします">🦴 ボーン<kbd class="key-hint">B</kbd></button>
       </div>
     </div>
 
@@ -171,6 +172,41 @@
         <button class="move-target-btn" data-all="1" title="ロックされていない全レイヤーをまとめて動かします">全レイヤー</button>
       </div>
       <div class="layer-hint">選択範囲があれば、その範囲だけを動かします</div>
+    </div>
+
+    <!-- ボーン（ボーンツールのときだけ表示。動きは bones.js） -->
+    <div class="panel-section" id="bone-section" style="display:none">
+      <div class="panel-label">ボーン</div>
+      <div class="tool-grid">
+        <button class="bone-mode-btn active" data-bone-mode="build" title="関節から先へドラッグして骨を置きます">骨を置く</button>
+        <button class="bone-mode-btn" data-bone-mode="pose" title="骨の先をドラッグして回し、ポーズを付けます">ポーズ</button>
+      </div>
+      <div class="layer-hint" id="bone-hint"></div>
+      <div class="bone-list" id="bone-list"></div>
+      <div class="tool-grid" id="bone-build-actions" style="margin-top:6px;">
+        <button id="btn-bone-auto" title="レイヤーごとに、絵のまん中にいちばん近い骨を割り当てます">自動で割り当て</button>
+        <button id="btn-bone-delete" class="danger" title="選んでいる骨を削除します（先につながった骨は残ります）">骨を削除</button>
+      </div>
+      <div id="bone-pose-box" style="display:none;">
+        <div class="tool-grid" style="margin-top:6px;">
+          <button id="btn-pose-reset" title="骨を描いたときの形に戻します">形を戻す</button>
+          <button id="btn-pose-save" class="primary" title="今のポーズを覚えます">ポーズを覚える</button>
+        </div>
+        <div class="bone-pose-list" id="bone-pose-list"></div>
+        <div class="panel-label" style="margin-top:10px;">コマを作る</div>
+        <div class="bone-gen-row">
+          <select id="bone-gen-from" aria-label="始めのポーズ"></select>
+          <span>→</span>
+          <select id="bone-gen-to" aria-label="終わりのポーズ"></select>
+        </div>
+        <div class="bone-gen-row">
+          <label for="bone-gen-count">間のコマ</label>
+          <input type="number" id="bone-gen-count" min="0" max="30" value="3">
+        </div>
+        <label class="detect-line-label"><input type="checkbox" id="bone-gen-back" style="accent-color:var(--accent)"> 往復させる（戻りのコマも作る）</label>
+        <label class="detect-line-label"><input type="checkbox" id="bone-gen-ease" checked style="accent-color:var(--accent)"> なめらか（ゆっくり始まって止まる）</label>
+        <button id="btn-bone-generate" class="primary" style="width:100%; margin-top:6px;">コマを作る</button>
+      </div>
     </div>
 
     <!-- 描画サイズ -->
@@ -489,6 +525,7 @@
     <button class="tool-btn rail-btn" data-tool="erase" title="消しゴム">🧹</button>
     <button class="tool-btn rail-btn" data-tool="pick" title="スポイト">💉</button>
     <button class="tool-btn rail-btn" data-tool="move" title="移動">✥</button>
+    <button class="tool-btn rail-btn" data-tool="bone" title="ボーン">🦴</button>
     <div class="rail-sep"></div>
     <div class="rail-item">
       <button class="rail-btn" data-popover="rail-pop-select" title="選択・切り取り・コピー・貼り付け">📐</button>
@@ -516,6 +553,8 @@
           <!-- 前後のコマを薄く表示する（anim.js） -->
           <canvas id="canvas-onion"></canvas>
           <canvas id="canvas-main"></canvas>
+          <!-- ボーンで動かしたポーズの下書き（bones.js） -->
+          <canvas id="canvas-pose"></canvas>
           <div id="canvas-grid"></div>
           <div class="line-highlight" id="col-highlight" style="display:none"></div>
           <div class="line-highlight" id="row-highlight" style="display:none"></div>
@@ -864,6 +903,7 @@
 <script src="colorwheel.js"></script>
 <script src="script.js"></script>
 <script src="anim.js"></script>
+<script src="bones.js"></script>
 <script src="ai-bridge.js"></script>
 <script src="tablet.js"></script>
 <script src="tetris.js"></script>

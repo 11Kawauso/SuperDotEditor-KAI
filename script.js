@@ -62,6 +62,7 @@ const cBg  = document.getElementById('canvas-bg');
 const cTrace = document.getElementById('canvas-trace');
 const cOnion = document.getElementById('canvas-onion');
 const cMain= document.getElementById('canvas-main');
+const cPose = document.getElementById('canvas-pose'); // ボーンで動かしたポーズの下書き（bones.js）
 const cOv  = document.getElementById('canvas-overlay');
 const gridOverlay = document.getElementById('canvas-grid');
 const wrap = document.getElementById('canvas-wrap');
@@ -210,6 +211,7 @@ function initCells(c, r, keepOld) {
     frames = [{ layers, active: 0 }];
     currentFrame = 0;
     if (typeof onFramesReset === 'function') onFramesReset();
+    if (window.boneApi) window.boneApi.importRig(null);
   }
   syncActiveCells();
   document.getElementById('stat-grid').textContent = `${cols}×${rows}`;
@@ -260,10 +262,10 @@ function updateScrollPadding() {
 
 function resizeCanvases() {
   const {w, h} = canvasSize();
-  [cBg, cTrace, cOnion, cMain, cOv].forEach(c => { c.width = w; c.height = h; });
+  [cBg, cTrace, cOnion, cMain, cPose, cOv].forEach(c => { c.width = w; c.height = h; });
   wrap.style.width  = (w * zoom) + 'px';
   wrap.style.height = (h * zoom) + 'px';
-  [cBg, cTrace, cOnion, cMain, cOv].forEach(c => {
+  [cBg, cTrace, cOnion, cMain, cPose, cOv].forEach(c => {
     c.style.width  = (w * zoom) + 'px';
     c.style.height = (h * zoom) + 'px';
   });
@@ -271,6 +273,7 @@ function resizeCanvases() {
   drawAll();
   drawTraceImage(); // width/height変更でクリアされるため描き直す
   if (window.drawOnionSkin) window.drawOnionSkin(); // 前後のコマの表示も同じく
+  if (window.boneApi) window.boneApi.onCanvasResized();
 }
 
 function drawAll() {
@@ -1563,6 +1566,7 @@ function framesSnapshot() {
       active: i === currentFrame ? activeLayerIndex : f.active,
       delay: f.delay, // コマごとの表示時間（ミリ秒。無ければ全体の速さに合わせる）
     })),
+    rig: window.boneApi ? window.boneApi.exportRig() : null, // 骨の組み立て（bones.js）
   };
 }
 // 戻す・やり直すときに、反対側の履歴へ積む「今の状態」（戻す記録と同じ範囲を記録する）
@@ -1600,6 +1604,7 @@ function restoreSnapshot(snap) {
   if (snap.frames) {
     frames = snap.frames;
     currentFrame = Math.min(snap.frame, frames.length - 1);
+    if (snap.rig !== undefined && window.boneApi) window.boneApi.importRig(snap.rig);
   } else {
     // そのコマのレイヤーを戻し、どのコマが戻ったか分かるようにそのコマを表示する
     frames[currentFrame].active = activeLayerIndex;
@@ -3223,6 +3228,7 @@ function setTool(t) {
   updateCanvasCursor();
   updateHeaderStatus();
   if (t !== 'pick') hidePickLoupe();
+  if (window.onToolChanged) window.onToolChanged(t); // ボーン（bones.js）の表示を切り替える
 }
 
 // ── ヘッダーの状態表示（描画中のレイヤーと今のツール） ──
@@ -3231,7 +3237,7 @@ const statusChip = document.getElementById('status-chip');
 const statusLayer = document.getElementById('status-layer');
 const statusTool = document.getElementById('status-tool');
 const TOOL_LABELS = {
-  pen: '✏️ ペン', fill: '🪣 塗り潰し', erase: '🧹 消しゴム', pick: '💉 スポイト', move: '✥ 移動',
+  pen: '✏️ ペン', fill: '🪣 塗り潰し', erase: '🧹 消しゴム', pick: '💉 スポイト', move: '✥ 移動', bone: '🦴 ボーン',
 };
 const DRAW_STYLE_LABELS = { col: '縦', row: '横' };
 
@@ -3308,6 +3314,7 @@ const TOOL_SHORTCUTS = {
   KeyA: 'erase',
   KeyS: 'pick',
   KeyV: 'move',
+  KeyB: 'bone',
 };
 
 // レイヤー名やファイル名の入力中はショートカットを無効にする
@@ -4810,8 +4817,10 @@ document.querySelectorAll('.bg-btn').forEach(b => {
 // コマが1つなら今までと同じ形（version 1）で保存し、2つ以上なら全部のコマを入れる（version 2）
 function serializeProject() {
   frames[currentFrame].active = activeLayerIndex;
-  if (frames.length <= 1) return { version: 1, cols, rows, layers: serializeLayers(layers) };
-  return {
+  const rig = window.boneApi ? window.boneApi.exportRig() : null;
+  const withRig = obj => (rig ? { ...obj, rig } : obj); // 骨が無いときは今までと同じ形
+  if (frames.length <= 1) return withRig({ version: 1, cols, rows, layers: serializeLayers(layers) });
+  return withRig({
     version: 2,
     cols, rows,
     fps: animFps,
@@ -4821,7 +4830,7 @@ function serializeProject() {
       ...(f.delay ? { delay: f.delay } : {}),
       layers: serializeLayers(f.layers),
     })),
-  };
+  });
 }
 
 function serializeLayers(list) {
@@ -4910,6 +4919,7 @@ function loadProjectData(p) {
   layerNameCounter = Math.max(...frames.map(f => f.layers.length)) + 1;
   syncActiveCells();
   if (typeof onFramesLoaded === 'function') onFramesLoaded();
+  if (window.boneApi) window.boneApi.importRig(p.rig || null);
   clearHistory();
   resetChangeTracking();
   floating = null;
