@@ -26,75 +26,98 @@
 </head>
 <body>
 
-<!-- ヘッダー：メニュー・今の道具の設定・元に戻す（広い画面では1段、狭い画面では設定だけ2段目に回る） -->
+<!-- ヘッダー：1段目にメニュー（右端に元に戻すなど）、2段目に今の道具の設定 -->
 <header>
-  <!-- メニュー（たまに使うものはここにまとめる。開け閉めは layout.js） -->
+  <!-- 1段目：メニュー（開け閉めは layout.js。ファイルだけは script.js） -->
   <nav class="menubar" aria-label="メニュー">
-    <!-- ファイル -->
+    <!-- ファイル（開け閉めは script.js） -->
     <div class="file-menu menu" id="file-menu">
-      <button id="btn-file-menu" class="menubar-btn" title="ファイル（新規・開く・保存・ログインなど）">📁<span class="menubar-text">ファイル</span></button>
+      <button id="btn-file-menu" class="menubar-btn">ファイル</button>
       <div class="file-dropdown menu-dropdown" id="file-dropdown" style="display:none">
 
-        <button id="btn-new-canvas" class="menu-item">🆕 新規キャンバス</button>
-        <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">📂 作品ファイルを開く</button>
+        <button id="btn-new-canvas" class="menu-item">新規キャンバス</button>
+        <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">作品ファイルを開く</button>
         <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
 
-        <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">🤖 AI に描いてもらう</button>
-
         <div id="save-menu-group">
-          <button id="btn-menu-save" class="menu-item">💾 保存 ▸</button>
+          <button id="btn-menu-save" class="menu-item">保存 ▸</button>
           <div class="menu-submenu" id="save-subdropdown" style="display:none">
-            <button id="btn-download" class="menu-item">↓ PNG保存</button>
-            <button id="btn-download-transparent" class="menu-item">↓ 透過保存</button>
-            <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">🎞 GIF保存</button>
-            <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">📄 作品ファイルとして保存</button>
-            <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">🧱 PEPORISに保存</button>
+            <button id="btn-download" class="menu-item">PNG保存</button>
+            <button id="btn-download-transparent" class="menu-item">透過保存</button>
+            <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">GIF保存</button>
+            <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">作品ファイルとして保存</button>
+            <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">PEPORISに保存</button>
             <div id="cloud-save-menu" style="display:none">
-              <button id="btn-cloud-save" class="menu-item">☁ クラウド保存 ▸</button>
+              <button id="btn-cloud-save" class="menu-item">クラウド保存 ▸</button>
               <div class="menu-submenu" id="cloud-save-dropdown" style="display:none">
-                <button id="btn-cloud-save-new" class="menu-item">🆕 新規保存</button>
-                <button id="btn-cloud-save-over" class="menu-item">♻️ 上書き保存</button>
+                <button id="btn-cloud-save-new" class="menu-item">新規保存</button>
+                <button id="btn-cloud-save-over" class="menu-item">上書き保存</button>
               </div>
             </div>
           </div>
         </div>
 
-        <button id="btn-gallery" class="menu-item" style="display:none">🖼 ギャラリー</button>
-        <button id="btn-logout" class="menu-item" style="display:none">⏻ ログアウト</button>
-        <button id="btn-login" class="menu-item">G ログイン</button>
+        <div class="menu-divider"></div>
+        <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">AI に描いてもらう</button>
+        <button id="btn-gallery" class="menu-item" style="display:none">ギャラリー</button>
+        <button id="btn-logout" class="menu-item" style="display:none">ログアウト</button>
+        <button id="btn-login" class="menu-item">ログイン</button>
 
         <div class="menu-divider"></div>
-        <a class="menu-item" href="index.html" title="スーパードットエディター・改のホーム画面へ">🏠 ホームへ</a>
-        <a class="menu-item" href="help.html" target="_blank" rel="noopener">❓ ヘルプ・使い方</a>
-        <a class="menu-item" href="terms.html" target="_blank" rel="noopener">📄 利用規約</a>
-        <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">🔒 プライバシーポリシー</a>
+        <a class="menu-item" href="index.html" title="スーパードットエディター・改のホーム画面へ">ホームへ</a>
+      </div>
+    </div>
+
+    <!-- 編集（data-proxy の項目は、同じ働きの元のボタンを押す。使えるかどうかも元のボタンに合わせる。layout.js） -->
+    <div class="menu" id="menu-edit">
+      <button class="menubar-btn">編集</button>
+      <div class="menu-dropdown" style="display:none">
+        <button class="menu-item" data-proxy="btn-undo">元に戻す<kbd class="menu-key" data-shortcut="undo">Ctrl+Z</kbd></button>
+        <button class="menu-item" data-proxy="btn-redo">やり直し<kbd class="menu-key" data-shortcut="redo">Ctrl+Y</kbd></button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" data-proxy="btn-cut">切り取り<kbd class="menu-key">Ctrl+X</kbd></button>
+        <button class="menu-item" data-proxy="btn-copy">コピー<kbd class="menu-key">Ctrl+C</kbd></button>
+        <button class="menu-item" data-proxy="btn-paste">貼り付け<kbd class="menu-key">Ctrl+V</kbd></button>
+        <div class="menu-divider"></div>
+        <button id="btn-clear" class="menu-item danger" title="今のレイヤーの絵を消します（元に戻せます）">今のレイヤーをクリア</button>
+      </div>
+    </div>
+
+    <!-- 選択 -->
+    <div class="menu" id="menu-select">
+      <button class="menubar-btn">選択</button>
+      <div class="menu-dropdown" style="display:none">
+        <button class="menu-item" id="btn-menu-select-all">すべて選択<kbd class="menu-key">Ctrl+A</kbd></button>
+        <button class="menu-item" data-proxy="btn-sel-clear">選択解除</button>
+        <div class="menu-divider"></div>
+        <button class="menu-item" data-proxy="btn-sel-range" title="ドラッグで選びます">範囲で選ぶ</button>
+        <button class="menu-item" data-proxy="btn-sel-color" title="押したマスと同じ色を、キャンバス全体から選びます">同じ色を選ぶ</button>
+        <button class="menu-item" data-proxy="btn-sel-flood" title="押したマスとつながった同じ色だけを選びます">隣接色を選ぶ</button>
       </div>
     </div>
 
     <!-- キャンバス -->
     <div class="menu" id="menu-canvas">
-      <button class="menubar-btn" title="キャンバス（グリッドサイズ・列や行の強調・クリア）">🔲<span class="menubar-text">キャンバス</span></button>
+      <button class="menubar-btn">キャンバス</button>
       <div class="menu-dropdown" style="display:none">
-        <button class="menu-item" data-sheet="grid">📏 グリッドサイズ…</button>
-        <button class="menu-item" data-sheet="highlight">🎯 列・行を強調…</button>
-        <div class="menu-divider"></div>
-        <button id="btn-clear" class="menu-item danger" title="今のレイヤーの絵を消します（元に戻せます）">🧽 今のレイヤーをクリア</button>
+        <button class="menu-item" data-sheet="grid">グリッドサイズ…</button>
+        <button class="menu-item" data-sheet="highlight">列・行を強調…</button>
       </div>
     </div>
 
     <!-- 画像 -->
     <div class="menu" id="menu-image">
-      <button class="menubar-btn" title="画像（画像から変換・トレース・参考画像）">🖼<span class="menubar-text">画像</span></button>
+      <button class="menubar-btn">画像</button>
       <div class="menu-dropdown" style="display:none">
-        <button class="menu-item" data-sheet="convert" title="写真などの画像をドット絵に変換して、新しいレイヤーとして重ねます">🪄 画像から変換…</button>
-        <button class="menu-item" data-sheet="trace" title="画像をキャンバスに半透明で敷いて、なぞって描きます">✍️ トレース（下絵）…</button>
-        <button class="menu-item" id="btn-ref-toggle" title="参考画像を表示">📌 参考画像を浮かべる</button>
+        <button class="menu-item" data-sheet="convert" title="写真などの画像をドット絵に変換して、新しいレイヤーとして重ねます">画像から変換…</button>
+        <button class="menu-item" data-sheet="trace" title="画像をキャンバスに半透明で敷いて、なぞって描きます">トレース（下絵）…</button>
+        <button class="menu-item" id="btn-ref-toggle" title="参考画像を表示">参考画像</button>
       </div>
     </div>
 
     <!-- 表示 -->
     <div class="menu" id="menu-view">
-      <button class="menubar-btn" title="表示（グリッド線・定規・背景・アニメーション）">🖥<span class="menubar-text">表示</span></button>
+      <button class="menubar-btn">表示</button>
       <div class="menu-dropdown" style="display:none">
         <label class="menu-check"><input type="checkbox" id="show-grid" checked> グリッド線</label>
         <label class="menu-check"><input type="checkbox" id="show-rulers" checked> 定規</label>
@@ -109,14 +132,26 @@
           </div>
         </div>
         <div class="menu-divider"></div>
-        <button id="btn-menu-timeline" class="menu-item" title="アニメーションのコマの一覧を出す・しまう">🎞 アニメーション（コマの一覧）</button>
+        <button class="menu-item" data-proxy="btn-dock-toggle" title="右の、色とレイヤーのパネルを出す・しまう">色とレイヤーのパネル</button>
+        <button id="btn-menu-timeline" class="menu-item" data-mirror="btn-toggle-timeline" title="アニメーションのコマの一覧を出す・しまう">アニメーション（コマの一覧）</button>
         <div class="menu-hint">D キー（または右下の 👁）を押している間は、描いた絵だけを表示します</div>
+      </div>
+    </div>
+
+    <!-- ヘルプ -->
+    <div class="menu" id="menu-help">
+      <button class="menubar-btn">ヘルプ</button>
+      <div class="menu-dropdown" style="display:none">
+        <a class="menu-item" href="help.html" target="_blank" rel="noopener">ヘルプ・使い方</a>
+        <div class="menu-divider"></div>
+        <a class="menu-item" href="terms.html" target="_blank" rel="noopener">利用規約</a>
+        <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
       </div>
     </div>
   </nav>
 
   <span class="artwork-chip" id="artwork-chip" style="display:none" title="開いているクラウド作品">📄 <span id="artwork-chip-name"></span></span>
-  <!-- 今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
+  <!-- 2段目：今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
   <div class="optbar" id="optbar">
     <!-- 今のツールと、描画中のレイヤー -->
     <span class="status-chip" id="status-chip" style="display:none">
@@ -176,7 +211,7 @@
     <span class="opt-hint" id="opt-hint"></span>
   </div>
 
-  <!-- 右端：コマの一覧・元に戻す・やり直し・右のパネルの出し入れ -->
+  <!-- 1段目の右端：コマの一覧・元に戻す・やり直し・右のパネルの出し入れ（スマホでは2段目の右端） -->
   <div class="header-actions">
     <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
     <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩<kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>

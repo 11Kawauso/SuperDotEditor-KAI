@@ -31,13 +31,13 @@ body {
 }
 
 /* ── ヘッダー ──
-   メニュー・今の道具の設定・元に戻すなどを1段に並べる（細かい並びはファイルの最後の「画面の並び」） */
+   1段目にメニュー、2段目に今の道具の設定（細かい並びはファイルの最後の「画面の並び」） */
 header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 0 4px;
   padding: 0 8px;
-  height: 38px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -1953,17 +1953,18 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
 
 /* ══════════════════════════════════════════════════════
    画面の並び
-   上：ヘッダー1段（メニュー・今の道具の設定・元に戻すなど）
+   上：ヘッダー2段（1段目にメニューと元に戻すなど、2段目に今の道具の設定）
    中：左に道具バー・中央にキャンバス・右に色とレイヤーのパネル
    下：コマの一覧（出しているときだけ）とステータスバー
-   画面が狭いときは、今の道具の設定だけヘッダーの2段目に回る。
    縦向きのタブレットでは右のパネルを下に、スマホでは道具バーを下に置いて
    右のパネルは下から引き出す。開け閉めや出し分けは layout.js。
    ══════════════════════════════════════════════════════ */
 
-/* ── ヘッダー ── */
+/* ── ヘッダーの1段目：メニューと、右端のボタン ── */
 header > * { flex-shrink: 0; }
-header button { height: 26px; padding: 0 8px; }
+header button { height: 24px; padding: 0 8px; }
+.menubar,
+.header-actions { height: 30px; }
 /* キーの表示はボタンの説明（マウスを乗せると出る）に任せる */
 header .key-hint { display: none; }
 .header-actions {
@@ -1978,18 +1979,19 @@ header .key-hint { display: none; }
 #btn-dock-toggle { width: 30px; padding: 0; }
 #btn-dock-toggle.active { background: var(--accent); border-color: var(--accent); }
 
-/* メニュー */
-.menubar { display: flex; align-items: center; gap: 1px; }
+/* メニュー（文字だけを横に並べる） */
+.menubar { display: flex; align-items: center; gap: 0; }
 .menu { position: relative; display: flex; }
 .menubar-btn {
   border-color: transparent;
+  border-radius: 4px;
   background: transparent;
 }
 .menubar-btn:hover,
-.menubar-btn.open { background: var(--bg); border-color: var(--border); }
+.menubar-btn.open { background: var(--border); }
 .menu-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 3px);
   left: 0;
   z-index: 70;
   display: flex;
@@ -2006,6 +2008,14 @@ header .key-hint { display: none; }
 .menu-dropdown button { height: 28px; padding: 5px 12px; }
 .menu-dropdown .bg-btn { height: 20px; padding: 0; }
 .menu-item.danger { color: var(--danger); }
+/* 項目の右端に出すキーの表示 */
+.menu-key {
+  margin-left: auto;
+  padding-left: 28px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+}
 /* 出している物（参考画像・コマの一覧）には印を付ける */
 .menu-item.active::after { content: '✓'; margin-left: auto; padding-left: 12px; }
 /* メニューの中のチェック */
@@ -2040,19 +2050,20 @@ header .key-hint { display: none; }
   color: var(--text-muted);
 }
 
-/* ── 今の道具の設定（メニューの右に続ける） ── */
+/* ── ヘッダーの2段目：今の道具の設定 ── */
 header > .optbar {
-  flex: 1 1 0;
+  order: 10;
+  flex: 0 0 calc(100% + 16px);
   min-width: 0;
+  margin: 0 -8px; /* ヘッダーの左右の余白ぶんを打ち消して、区切り線を端から端まで引く */
 }
 .optbar {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 100%;
-  margin-left: 4px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
+  height: 34px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
   white-space: nowrap;
   /* 入りきらないときは横にスクロールする（スクロールバーは出さない） */
   overflow-x: auto;
@@ -2095,24 +2106,7 @@ header > .optbar {
   color: var(--text-muted);
 }
 /* 右のパネルにレイヤーが見えている間は、レイヤー名を重ねて出さない */
-@media (min-width: 1000px) {
-  body.dock-open .status-layer { display: none; }
-}
-/* 画面が狭いときは、今の道具の設定を2段目に回す */
-@media (max-width: 999px) {
-  header { flex-wrap: wrap; height: auto; }
-  .menubar,
-  .header-actions { height: 38px; }
-  header > .optbar {
-    order: 10;
-    flex: 0 0 calc(100% + 16px);
-    height: 34px;
-    margin: 0 -8px;
-    padding: 0 8px;
-    border-left: none;
-    border-top: 1px solid var(--border);
-  }
-}
+body.dock-open .status-layer { display: none; }
 
 /* ── 中の段：道具バー・キャンバス・右のパネル ── */
 .app {
@@ -2307,7 +2301,9 @@ body.dock-open .dock { display: flex; }
   border-radius: 12px;
 }
 .tablet-ui .tool-rail .shape-menu-btn img { width: 25px; height: 25px; }
-.tablet-ui header { height: 44px; }
+.tablet-ui .menubar,
+.tablet-ui .header-actions { height: 40px; }
+.tablet-ui .optbar { height: 42px; }
 .tablet-ui header button,
 .tablet-ui .optbar button { height: 32px; padding: 0 12px; font-size: 12px; }
 .tablet-ui #btn-toggle-timeline,
@@ -2319,13 +2315,6 @@ body.dock-open .dock { display: flex; }
 .tablet-ui .dock .palette-grid { grid-template-columns: repeat(8, 1fr); gap: 3px; }
 .tablet-ui .dock .swatch-empty { font-size: 13px; }
 .tablet-ui .dock button { height: 30px; }
-@media (max-width: 999px) {
-  .tablet-ui header { height: auto; }
-  .tablet-ui .menubar,
-  .tablet-ui .header-actions { height: 44px; }
-  .tablet-ui header > .optbar { height: 42px; }
-}
-
 /* ── 縦向き（タブレットなど）：右のパネルを下に横長で置く ── */
 @media (orientation: portrait) and (min-width: 641px) {
   .app {
@@ -2369,15 +2358,46 @@ body.dock-open .dock { display: flex; }
 
 /* ── スマホ：道具バーは下、右のパネルは下から引き出す ── */
 @media (max-width: 640px) {
-  header { gap: 4px; padding: 0 6px; }
-  .menubar { gap: 0; }
-  .menubar-text { display: none; }
-  header .menubar-btn { height: 30px; padding: 0 8px; font-size: 15px; }
+  /* 1段目はメニューだけにして、元に戻すなどのボタンは2段目の右端に置く */
+  header { padding: 0 6px; position: relative; }
+  .menubar,
+  .tablet-ui .menubar {
+    flex: 0 0 calc(100% + 12px);
+    justify-content: space-between;
+    height: 32px;
+    margin: 0 -6px;
+    padding: 0 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  header .menubar-btn { height: 26px; padding: 0 5px; }
+  @media (max-width: 360px) {
+    header .menubar-btn { padding: 0 3px; font-size: 11px; } /* 幅の狭いスマホでも7つ並ぶように */
+  }
+  /* メニューの中身は、どれも画面の左端から開く（右のほうのメニューがはみ出さないように） */
+  .menubar .menu { position: static; }
+  .menu-dropdown { top: 32px; left: 6px; max-width: calc(100vw - 12px); }
+  .menu-dropdown button { height: 34px; }
+  .artwork-chip { order: 9; max-width: 80px; }
+  header > .optbar {
+    order: 10;
+    flex: 1 1 0;
+    height: 36px;
+    margin: 0 0 0 -6px;
+    padding: 0 8px;
+    border-top: none;
+    gap: 8px;
+  }
+  .header-actions,
+  .tablet-ui .header-actions {
+    order: 11;
+    height: 36px;
+    margin-left: 0;
+    padding-left: 6px;
+    border-left: 1px solid var(--border);
+  }
   #btn-undo,
   #btn-redo,
-  #btn-dock-toggle { width: 34px; height: 30px; }
-  .artwork-chip { max-width: 90px; }
-  header > .optbar { flex-basis: calc(100% + 12px); margin: 0 -6px; height: 36px; gap: 8px; }
+  #btn-dock-toggle { width: 32px; height: 28px; }
   .optbar button { height: 26px; font-size: 12px; }
   .opt-group { padding-left: 8px; }
   .opt-hint { display: none; }

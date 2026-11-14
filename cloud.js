@@ -101,10 +101,10 @@ function setCurrentArtwork(id, name) {
   if (id) {
     artworkChipName.textContent = currentArtworkName;
     artworkChip.style.display = 'inline-flex';
-    btnSaveOver.textContent = `♻️ 上書き保存（${currentArtworkName}）`;
+    btnSaveOver.textContent = `上書き保存（${currentArtworkName}）`;
   } else {
     artworkChip.style.display = 'none';
-    btnSaveOver.textContent = '♻️ 上書き保存（作品を選択…）';
+    btnSaveOver.textContent = '上書き保存（作品を選択…）';
   }
 }
 

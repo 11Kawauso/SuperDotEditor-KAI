@@ -22,7 +22,7 @@
     try { localStorage.setItem(key, value); } catch (err) { /* 覚えられなくても使える */ }
   }
 
-  // ── メニュー（キャンバス・画像・表示） ──
+  // ── メニュー（編集・選択・キャンバス・画像・表示・ヘルプ） ──
   // ファイルメニューは script.js が開け閉めする。ここではそれ以外のメニューを扱う
   const menus = [...document.querySelectorAll('.menubar .menu')].filter(m => m.id !== 'file-menu');
   const dropdownOf = menu => menu.querySelector('.menu-dropdown');
@@ -39,6 +39,7 @@
       const dd = dropdownOf(menu);
       const open = dd.style.display === 'none';
       closeMenus(menu);
+      if (open) syncMenuItems(menu);
       dd.style.display = open ? 'flex' : 'none';
       btn.classList.toggle('open', open);
     });
@@ -47,6 +48,34 @@
       if (e.target.closest('.menu-item')) closeMenus();
     });
   });
+  // 「元に戻す」「切り取り」などは、同じ働きのボタンがほかの場所にもある。メニューの項目は
+  // そのボタンを押すだけにして、使えるかどうか・出しているかどうかの印も、開くたびに合わせる
+  function syncMenuItems(menu) {
+    menu.querySelectorAll('[data-proxy], [data-mirror]').forEach(item => {
+      const target = $(item.dataset.proxy || item.dataset.mirror);
+      item.classList.toggle('active', target.classList.contains('active'));
+      if (item.dataset.proxy) item.disabled = target.disabled || target.style.display === 'none';
+    });
+  }
+  document.querySelectorAll('.menubar [data-proxy]').forEach(item => {
+    item.addEventListener('click', () => $(item.dataset.proxy).click());
+  });
+  $('btn-menu-select-all').addEventListener('click', () => selectAll());
+  // メニューを1つ開いている間は、ほかのメニューの名前にマウスを乗せるだけで切り替わる
+  const allMenus = [...document.querySelectorAll('.menubar .menu')];
+  const isOpen = menu => dropdownOf(menu).style.display !== 'none';
+  allMenus.forEach(menu => {
+    const btn = menu.querySelector('.menubar-btn');
+    btn.addEventListener('mouseenter', () => {
+      if (!isOpen(menu) && allMenus.some(isOpen)) btn.click();
+    });
+  });
+  // Mac では Ctrl ではなく ⌘ を使うので、メニューのキー表示も合わせる（元に戻す・やり直しは script.js）
+  if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+    document.querySelectorAll('.menu-key:not([data-shortcut])').forEach(k => {
+      k.textContent = k.textContent.replace('Ctrl+', '⌘');
+    });
+  }
   // メニューの外を押したら閉じる
   document.addEventListener('click', e => {
     closeMenus(menus.find(menu => menu.contains(e.target)));
