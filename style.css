@@ -11,7 +11,8 @@
   --accent-hover: #555552;
   --danger: #c0392b;
   --radius: 6px;
-  --panel: 260px;
+  --rail: 52px;  /* 左の道具バーの幅 */
+  --dock: 248px; /* 右のパネル（色とレイヤー）の幅 */
 }
 
 body {
@@ -134,87 +135,6 @@ button.danger { color: var(--danger); border-color: #e8c4c1; }
 button.danger:hover { background: #fdf0ef; }
 button:disabled { opacity: 0.4; cursor: default; transform: none; }
 
-/* ── メインレイアウト ── */
-.app {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-}
-
-/* ── 左パネル ── */
-.panel {
-  width: var(--panel);
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  touch-action: pan-y;
-  transition: width 0.22s ease, transform 0.22s ease;
-}
-.panel::-webkit-scrollbar {
-  display: none;
-}
-.panel.collapsed {
-  width: 0 !important;
-  border-right-color: transparent;
-  overflow: hidden;
-}
-.panel.no-transition {
-  transition: none;
-}
-
-/* リサイズハンドル */
-.panel-resize {
-  width: 4px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  background: transparent;
-  transition: background 0.15s, width 0.22s ease;
-  position: relative;
-  z-index: 5;
-}
-.panel-resize:hover,
-.panel-resize.dragging {
-  background: var(--accent);
-}
-.panel.collapsed ~ .panel-resize {
-  width: 0;
-  cursor: default;
-}
-
-/* パネル開閉ボタン */
-.panel-toggle {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 6;
-  width: 20px;
-  height: 40px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-left: none;
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 10px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s, left 0.22s ease;
-}
-.panel-toggle:hover {
-  background: var(--bg);
-  color: var(--text);
-}
-.panel-toggle:active {
-  transform: translateY(-50%);
-}
 .panel-section {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
@@ -470,10 +390,12 @@ button:disabled { opacity: 0.4; cursor: default; transform: none; }
   align-items: flex-start;
   padding-top: 10vh;
 }
-.confirm-modal.modal-left {
-  justify-content: flex-start;
-  padding-left: 16px;
+/* 色選択の窓は、右のパネル（パレット）のすぐ隣に出す */
+.confirm-modal.modal-side {
+  justify-content: flex-end;
+  padding-right: 16px;
 }
+body.dock-open .confirm-modal.modal-side { padding-right: calc(var(--dock) + 16px); }
 /* 色選択モーダルだけは背景を暗くしない。
    「画面から色を拾う」（💉）は画面に表示されている色をそのまま拾うため、
    暗いオーバーレイが重なっているとパレットから拾った色まで暗くなってしまう。
@@ -864,8 +786,8 @@ input, select, textarea {
 .page-picking,
 .page-picking * { cursor: crosshair !important; }
 .page-picking .page-pick-bar button { cursor: pointer !important; }
-/* スマホでパネルを開いているときの暗い幕を消して、下の色がそのまま見えるようにする */
-.page-picking .panel-backdrop { opacity: 0 !important; }
+/* スマホで右のパネルを開いているときの暗い幕を消して、下の色がそのまま見えるようにする */
+.page-picking .dock-backdrop { background: transparent !important; }
 
 /* スポイト中にカーソルの横に出る拡大鏡（位置はscript.jsで決める） */
 .pick-loupe {
@@ -890,12 +812,13 @@ input, select, textarea {
 
 /* 色履歴 */
 .color-history {
-  position: fixed;
-  z-index: 50;
+  position: absolute;
+  left: 14px;
+  bottom: 26px;
+  z-index: 8;
   display: flex;
   align-items: end;
   gap: 5px;
-  transition: left 0.22s ease;
 }
 .color-dot {
   border-radius: 50%;
@@ -913,10 +836,10 @@ input, select, textarea {
 
 /* ズームコントロール */
 .zoom-controls {
-  position: fixed;
-  bottom: 36px;
-  right: 12px;
-  z-index: 50;
+  position: absolute;
+  bottom: 22px;
+  right: 22px;
+  z-index: 8;
   display: flex;
   gap: 4px;
   align-items: center;
@@ -941,48 +864,12 @@ input, select, textarea {
 }
 #zoom-label { min-width: 40px; text-align: center; color: var(--text-muted); }
 
-/* テンプレート図形メニュー（画面右上固定） */
-.shape-menu {
-  position: fixed;
-  top: 56px;
-  right: 28px;
-  z-index: 60;
-}
-.shape-menu-btn {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 50%;
-  font-size: 15px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+/* テンプレート図形メニュー（道具バーの中。並びの指定はファイルの最後） */
 .shape-menu-btn img {
   width: 22px;
   height: 22px;
   object-fit: contain; /* 横長の画像でも縦横比を保って収める */
   pointer-events: none;
-}
-.shape-menu-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-.shape-menu-dropdown {
-  position: absolute;
-  top: 44px;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 170px;
 }
 .shape-opt {
   width: 100%;
@@ -997,26 +884,6 @@ input, select, textarea {
   border-color: var(--accent);
 }
 
-/* 参考画像ボタン（図形ボタンの左に並べる） */
-.ref-toggle {
-  position: fixed;
-  top: 56px;
-  right: 72px; /* 図形ボタン(right:28px, 幅36px) + 間隔8px */
-  z-index: 60;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.ref-toggle svg { pointer-events: none; }
-.ref-toggle.active {
-  background: var(--accent);
-  border-color: var(--accent);
-}
 
 /* 参考画像ウィンドウ。位置と大きさはscript.jsで指定する */
 .ref-window {
@@ -1263,8 +1130,6 @@ input, select, textarea {
   line-height: 15px;
 }
 .timeline-frame.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
-/* 一覧を出している間は、右下の拡大縮小を一覧の上へ逃がす（タブレットはキャンバスの枠の中にあるので不要） */
-html:not(.tablet-ui) body.timeline-open .zoom-controls { bottom: calc(36px + var(--timeline-h, 0px)); }
 /* PEPORIS で遊んでいる間はしまう */
 body.tetris-playing .timeline { visibility: hidden; }
 
@@ -1308,14 +1173,8 @@ body.tetris-playing .timeline { visibility: hidden; }
 .start-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; justify-content: center; }
 .restore-time { margin-left: 6px; font-size: 11px; opacity: 0.8; }
 
-/* パネル背景オーバーレイ（モバイル用） */
-.panel-backdrop {
-  display: none;
-}
-
 /* ── レスポンシブ ── */
 @media (max-width: 768px) {
-  :root { --panel: 240px; }
   header h1 { font-size: 13px; }
   header { gap: 6px; padding: 0 10px; }
   .statusbar { gap: 10px; padding: 0 8px; }
@@ -1326,72 +1185,6 @@ body.tetris-playing .timeline { visibility: hidden; }
   header h1 { font-size: 13px; }
   .hide-mobile { display: none; }
   .key-hint { display: none; } /* スマホにはキーボードが無いため */
-
-  /* パネル：オーバーレイドロワー */
-  .panel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 100;
-    height: 100vh;
-    height: 100dvh;
-    width: 280px;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
-  }
-  .panel.collapsed {
-    width: 280px !important;
-    transform: translateX(-100%);
-  }
-
-  /* リサイズハンドル非表示 */
-  .panel-resize { display: none; }
-
-  /* 背景オーバーレイ */
-  .panel-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 99;
-    background: rgba(0,0,0,0.3);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s ease;
-  }
-  .panel-backdrop.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  /* トグルボタン */
-  .panel-toggle {
-    left: 0 !important;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
-    height: 44px;
-    font-size: 11px;
-    z-index: 6;
-  }
-  .panel-toggle:active {
-    transform: translateY(-50%);
-  }
-
-
-  /* ズームコントロール */
-  .zoom-controls {
-    bottom: 8px;
-    right: 8px;
-  }
-
-  /* テンプレート図形メニュー */
-  .shape-menu {
-    top: 48px;
-    right: 8px;
-  }
-  .ref-toggle {
-    top: 48px;
-    right: 52px;
-  }
 
   /* ステータスバー */
   .statusbar { font-size: 10px; gap: 8px; padding: 0 6px; }
@@ -1468,87 +1261,6 @@ body.tetris-playing .timeline { visibility: hidden; }
 .layer-actions button { flex: 1; padding: 5px 0; }
 #btn-layer-add { flex: 2; }
 
-/* ── パネルタブ ── */
-.panel-tabs {
-  display: flex;
-  gap: 5px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  flex-shrink: 0;
-}
-.panel-tab-btn {
-  flex: 1;
-  height: 32px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  justify-content: center;
-  color: var(--text-muted);
-}
-.panel-tab-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
-/* タブ右端の「右に並べて表示」ボタン */
-.panel-tab-arrow {
-  width: 28px;
-  flex-shrink: 0;
-  padding: 0;
-  height: 32px;
-  border-radius: var(--radius);
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-/* レイヤータブではリストを広く使えるようにする */
-#panel-tab-layers .layer-list {
-  max-height: none;
-}
-
-/* ── レイヤードック（左パネルの右に並べて表示） ── */
-.layer-dock {
-  width: 230px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.layer-dock-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-.layer-dock-header button {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  font-size: 10px;
-  color: var(--text-muted);
-}
-/* ドック内のレイヤーページは高さいっぱいに広げる（操作ボタンは下部固定のまま） */
-.layer-dock #panel-tab-layers {
-  flex: 1;
-  min-height: 0;
-}
-
-/* 画面が狭いときは並べて表示できるだけの幅がないため、ドック機能自体を隠す */
-@media (max-width: 900px) {
-  .panel-tab-arrow { display: none; }
-}
-
 /* ── レイヤー拡張（不透明度・ロック・名前変更） ── */
 .layer-opacity-row {
   display: flex;
@@ -1594,26 +1306,6 @@ body.tetris-playing .timeline { visibility: hidden; }
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-}
-
-/* ── レイヤータブ：操作ボタンを下部に固定 ── */
-#panel-tab-layers {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-#panel-tab-layers .panel-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-#panel-tab-layers .layer-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin-bottom: 10px;
 }
 
 /* ── レイヤーのドラッグ並び替え ── */
@@ -1779,13 +1471,14 @@ body.tetris-playing .timeline { visibility: hidden; }
 /* 絵の確認モード（Dキー・👁ボタンを押している間）：描いた絵以外をすべて隠す。
    display:noneではなくvisibility:hiddenにして、レイアウト（絵の位置）を動かさない。 */
 body.art-preview header,
-body.art-preview .panel,
-body.art-preview .panel-toggle,
-body.art-preview .panel-resize,
-body.art-preview .layer-dock,
+body.art-preview .optbar,
+body.art-preview .optbar *,
+body.art-preview .tool-rail,
+body.art-preview .dock,
+body.art-preview .dock *,
+body.art-preview .sheet,
+body.art-preview .sheet *,
 body.art-preview .statusbar,
-body.art-preview .shape-menu,
-body.art-preview .ref-toggle,
 body.art-preview .ref-window,
 body.art-preview .color-history,
 body.art-preview .color-history *, /* 色の丸は個別にvisibilityを指定しているので、それごと隠す */
@@ -1836,23 +1529,9 @@ body.art-preview #btn-art-preview { visibility: visible !important; }
   flex: 0 1 auto;
   max-width: 160px;
   color: var(--text-muted);
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
 }
-.status-tool { flex: 0 1 auto; color: var(--text); }
-/* スマホではヘッダーに入りきらないので、ヘッダーの下（左上）に浮かべて表示する。
-   右上には参考画像・図形ボタン（計約100px）があるので、その手前までの幅にする。 */
-@media (max-width: 640px) {
-  .status-chip {
-    position: fixed;
-    top: 48px;
-    left: 8px;
-    z-index: 60;
-    max-width: calc(100vw - 124px);
-    background: var(--surface);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  }
-  .status-layer { max-width: 50%; }
-}
+.status-tool { flex: 0 1 auto; color: var(--text); font-weight: 500; }
 .artwork-chip #artwork-chip-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1869,8 +1548,8 @@ body.art-preview #btn-art-preview { visibility: visible !important; }
 .file-dropdown {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
-  z-index: 70; /* 画面右上固定のハンバーガーメニュー(.shape-menu, z-index:60)より手前にする */
+  left: 0;
+  z-index: 70;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1951,14 +1630,12 @@ a.menu-item:hover { background: var(--bg); }
 /* 遊んでいる間（出入りの演出中も含む）はキャンバスに描けず、エディタも操作できない */
 body.tetris-playing #canvas-overlay { visibility: hidden; pointer-events: none; }
 body.tetris-playing header,
-body.tetris-playing .panel,
-body.tetris-playing .panel-toggle,
-body.tetris-playing .panel-resize,
-body.tetris-playing .layer-dock,
+body.tetris-playing .optbar,
+body.tetris-playing .tool-rail,
+body.tetris-playing .dock,
+body.tetris-playing .sheet,
 body.tetris-playing .zoom-controls,
 body.tetris-playing .color-history,
-body.tetris-playing .shape-menu,
-body.tetris-playing .ref-toggle,
 body.tetris-playing .ref-window,
 body.tetris-playing .float-palette,
 body.tetris-playing .statusbar,
@@ -1971,29 +1648,24 @@ body.tetris-playing .ruler-corner {
 @keyframes tetris-out-up    { to { transform: translateY(-100%); } }
 @keyframes tetris-out-down  { to { transform: translateY(100%); } }
 @keyframes tetris-out-left  { to { transform: translateX(-100%); } }
+@keyframes tetris-out-right { to { transform: translateX(100%); } }
 @keyframes tetris-fade-out  { to { opacity: 0; visibility: hidden; } }
 @keyframes tetris-back-up   { from { transform: translateY(100%); }  to { transform: none; } }
 @keyframes tetris-back-down { from { transform: translateY(-100%); } to { transform: none; } }
 @keyframes tetris-back-right { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes tetris-back-left  { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes tetris-fade-in   { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
 
 body.tetris-out header { animation: tetris-out-up 1.2s steps(6, end) forwards; }
 body.tetris-out .statusbar { animation: tetris-out-down 1.2s steps(6, end) forwards; }
 /* スマホで閉じているパネルは元々画面外なので動かさない */
-body.tetris-out .panel:not(.collapsed),
-body.tetris-out .layer-dock { animation: tetris-out-left 1.2s steps(6, end) forwards; }
-/* パネルの開閉ボタンとリサイズハンドルはパネルの端に付いているので、パネルと一緒に動かない
-   フェードだと、パネルから離れて浮いて見える。消えるときは最初に消し、戻るときは
-   パネルが戻りきってから出す（戻る演出の間はずっと隠しておく） */
-@keyframes tetris-hide { from, to { opacity: 0; visibility: hidden; } }
-body.tetris-out .panel-toggle,
-body.tetris-out .panel-resize,
-body.tetris-return .panel-toggle,
-body.tetris-return .panel-resize { animation: tetris-hide 1.2s forwards; }
+/* 道具バーは左へ、右のパネルは右へ。道具の設定の帯と小窓は、その場で消える */
+body.tetris-out .tool-rail { animation: tetris-out-left 1.2s steps(6, end) forwards; }
+body.tetris-out .dock { animation: tetris-out-right 1.2s steps(6, end) forwards; }
+body.tetris-out .optbar,
+body.tetris-out .sheet,
 body.tetris-out .zoom-controls,
 body.tetris-out .color-history,
-body.tetris-out .shape-menu,
-body.tetris-out .ref-toggle,
 body.tetris-out .ref-window,
 body.tetris-out .float-palette,
 body.tetris-out .ruler,
@@ -2004,12 +1676,12 @@ body.tetris-out .center-line { animation: tetris-fade-out 1.2s steps(4, end) for
 /* 終了時は同じ動きを逆向きにして戻ってくる */
 body.tetris-return header { animation: tetris-back-down 1.2s steps(6, end); }
 body.tetris-return .statusbar { animation: tetris-back-up 1.2s steps(6, end); }
-body.tetris-return .panel:not(.collapsed),
-body.tetris-return .layer-dock { animation: tetris-back-right 1.2s steps(6, end); }
+body.tetris-return .tool-rail { animation: tetris-back-right 1.2s steps(6, end); }
+body.tetris-return .dock { animation: tetris-back-left 1.2s steps(6, end); }
+body.tetris-return .optbar,
+body.tetris-return .sheet,
 body.tetris-return .zoom-controls,
 body.tetris-return .color-history,
-body.tetris-return .shape-menu,
-body.tetris-return .ref-toggle,
 body.tetris-return .ref-window,
 body.tetris-return .float-palette,
 body.tetris-return .ruler,
@@ -2308,175 +1980,405 @@ body.tetris-instant *:not(.tetris-side) { animation-duration: 0s !important; }
 body.tetris-plain #canvas-bg { visibility: hidden; }
 body.tetris-plain #canvas-wrap { background: #ffffff; }
 
-/* ── タブレット用レイアウト（iPadなど） ──
-   お絵かきソフトのように、左に道具バー・中央にキャンバス・右に色パネルを並べる。
-   縦向きでは色パネルを下に回す。判定は editor.html の head、部品の移動は tablet.js。 */
-.tool-rail,
-.color-dock,
-.tablet-only { display: none; }
-.tablet-ui .tablet-only { display: inline-flex; }
 
-.tablet-ui .app {
+/* ══════════════════════════════════════════════════════
+   画面の並び
+   上：ヘッダー（メニュー）と、今の道具の設定の帯
+   中：左に道具バー・中央にキャンバス・右に色とレイヤーのパネル
+   下：コマの一覧（出しているときだけ）とステータスバー
+   縦向きのタブレットでは右のパネルを下に、スマホでは道具バーを下に置いて
+   右のパネルは下から引き出す。開け閉めや出し分けは layout.js。
+   ══════════════════════════════════════════════════════ */
+
+/* ── ヘッダーのメニュー ── */
+.menubar { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.menu { position: relative; display: flex; }
+.menubar-btn {
+  padding: 5px 9px;
+  border-color: transparent;
+  background: transparent;
+}
+.menubar-btn:hover,
+.menubar-btn.open { background: var(--bg); border-color: var(--border); }
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  min-width: 220px;
+}
+.menu-item.danger { color: var(--danger); }
+/* 出している物（参考画像・コマの一覧）には印を付ける */
+.menu-item.active::after { content: '✓'; margin-left: auto; padding-left: 12px; }
+/* メニューの中のチェック */
+.menu-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.menu-check:hover { background: var(--bg); }
+.menu-check input { accent-color: var(--accent); }
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.menu-hint {
+  max-width: 230px;
+  padding: 4px 12px 6px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+#btn-dock-toggle.active { background: var(--accent); border-color: var(--accent); }
+/* 「元に戻す」「やり直し」の文字は、広い画面でだけ出す */
+@media (max-width: 1099px) {
+  .header-text { display: none; }
+}
+
+/* ── 今の道具の設定の帯 ── */
+.optbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  white-space: nowrap;
+  /* 入りきらないときは横にスクロールする（スクロールバーは出さない） */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.optbar::-webkit-scrollbar { display: none; }
+.optbar .status-chip { flex-shrink: 0; }
+.opt-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.opt-pair { display: inline-flex; gap: 5px; }
+.opt-label { margin-right: 2px; font-size: 11px; color: var(--text-muted); }
+.optbar button {
+  width: auto;
+  height: 26px;
+  padding: 0 10px;
+}
+.optbar .detect-line-label { margin-top: 0; }
+#opt-brush input[type=range] { width: 110px; accent-color: var(--accent); }
+#opt-brush .brush-size-val { min-width: 16px; }
+.bone-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.opt-hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── 中の段：道具バー・キャンバス・右のパネル ── */
+.app {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 248px;
+  grid-template-columns: var(--rail) minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "rail stage dock";
+  overflow: hidden;
+  position: relative;
 }
-.tablet-ui .canvas-stage { grid-area: stage; }
+.canvas-stage { grid-area: stage; }
 
 /* 左の道具バー（アイコンだけのボタンを縦に並べる） */
-.tablet-ui .tool-rail {
+.tool-rail {
   grid-area: rail;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 0;
+  gap: 4px;
+  padding: 8px 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   position: relative;
-  z-index: 20; /* 横に開く小窓をキャンバスより上に出す */
+  z-index: 35; /* 横に開く小窓を、キャンバスや設定の小窓より上に出す */
 }
-.tablet-ui .tool-rail .rail-btn,
-.tablet-ui .tool-rail .shape-menu-btn {
-  width: 46px;
-  height: 46px;
+.tool-rail .rail-btn {
+  width: 38px;
+  height: 38px;
   min-width: 0;
   padding: 0;
   justify-content: center;
-  font-size: 22px;
-  border-radius: 12px;
+  font-size: 18px;
+  border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
 }
-.tablet-ui .tool-rail .rail-btn:hover,
-.tablet-ui .tool-rail .shape-menu-btn:hover { background: var(--bg); }
-.tablet-ui .tool-rail .rail-btn.active,
-.tablet-ui .tool-rail .rail-btn.open,
-.tablet-ui .tool-rail .shape-menu-btn.active {
+.tool-rail .rail-btn:hover { background: var(--bg); }
+.tool-rail .rail-btn.active,
+.tool-rail .rail-btn.open {
   background: var(--accent);
   border-color: var(--accent);
+  color: #fff;
 }
-.tablet-ui .tool-rail .shape-menu-btn img { width: 26px; height: 26px; }
-.rail-sep { width: 34px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
+/* 選択している間は、選択が終わったあとに戻る道具を控えめに示す */
+.tool-rail.selecting .tool-btn.active {
+  background: transparent;
+  border-color: var(--border-strong);
+}
+.rail-sep { width: 28px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
 .rail-spacer { flex: 1; }
-.tablet-ui .rail-item { position: relative; }
+.rail-item { position: relative; display: flex; }
+.tablet-only { display: none; }
+.tablet-ui .tablet-only { display: inline-flex; }
 
-/* 道具バーの横に開く小窓（選択・描画スタイル）と図形メニュー */
-.tablet-ui .rail-popover {
+/* 道具バーの横に開く小窓（選択・図形） */
+.rail-popover {
   display: none;
   position: absolute;
   top: 0;
   left: calc(100% + 10px);
-  width: 270px;
+  z-index: 30;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  min-width: 150px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.15);
 }
-.tablet-ui .rail-popover.open { display: block; }
-.tablet-ui .rail-popover .panel-section { border-bottom: none; }
-.tablet-ui .tool-rail .shape-menu { position: relative; top: auto; right: auto; z-index: auto; }
-.tablet-ui .tool-rail .shape-menu-dropdown { top: 0; right: auto; left: calc(100% + 10px); }
+.rail-popover.open { display: flex; }
+.rail-popover .sel-btn { justify-content: flex-start; padding: 0 12px; }
+/* 図形は2列に並べる（直線だけ1行使う） */
+.shape-menu-dropdown {
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 300px;
+}
+.shape-menu-dropdown .shape-opt { width: calc(50% - 2px); }
+.shape-menu-dropdown .shape-opt:first-child { width: 100%; }
 
-/* 右の色パネル */
-.tablet-ui .color-dock {
+/* 右のパネル（色とレイヤー） */
+.dock {
   grid-area: dock;
-  display: flex;
+  display: none;
   flex-direction: column;
+  width: var(--dock);
   background: var(--surface);
   border-left: 1px solid var(--border);
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
+  touch-action: pan-y;
 }
-.tablet-ui .color-dock .swatch,
-.tablet-ui .color-dock .swatch-empty { border-radius: 4px; }
-/* 色の履歴（左下に浮かべていたもの）を、色パネルの一番上に置く */
-.tablet-ui .color-dock .color-history {
-  position: static !important;
-  left: auto !important;
-  bottom: auto !important;
-  transition: none;
+body.dock-open .dock { display: flex; }
+.dock-backdrop { display: none; }
+.dock .swatch,
+.dock .swatch-empty { border-radius: 4px; }
+/* レイヤーの一覧は、パネルごとスクロールするので高さを切らない */
+.dock .layer-list { max-height: none; }
+/* 見出しを押すと折りたためる */
+.fold-toggle { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.fold-toggle::before { content: '▾'; font-size: 11px; }
+.folded .fold-toggle::before { content: '▸'; }
+.folded > .popout-body,
+.folded > .fold-body,
+.panel-section.folded > .popout-placeholder { display: none; }
+.folded > .panel-label { margin-bottom: 0; }
+
+/* メニューから開く設定の小窓（キャンバスの左上に重ねる） */
+.sheet {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: calc(100% - 20px);
+  max-height: calc(100% - 20px);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 6px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.sheet-close { width: 28px; padding: 0; border: none; color: var(--text-muted); }
+.sheet-body {
+  padding: 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  touch-action: pan-y;
 }
 
-/* 左パネル（設定・レイヤー）は、ヘッダーの ⚙・🗂 で左から引き出す */
-.tablet-ui .panel {
-  position: fixed;
-  top: 44px;
-  left: 0;
-  bottom: 0;
-  z-index: 100;
-  width: 320px !important;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+/* ── タブレット：指で押しやすい大きさにする ── */
+.tablet-ui { --rail: 64px; }
+.tablet-ui .tool-rail { gap: 6px; padding: 10px 0; }
+.tablet-ui .tool-rail .rail-btn {
+  width: 46px;
+  height: 46px;
+  font-size: 22px;
+  border-radius: 12px;
 }
-.tablet-ui .panel.collapsed {
-  width: 320px !important;
-  transform: translateX(-100%);
-  box-shadow: none;
-}
-.tablet-ui .panel-backdrop {
-  display: block;
-  position: fixed;
-  inset: 44px 0 0 0;
-  z-index: 99;
-  background: rgba(0,0,0,0.3);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.22s ease;
-}
-.tablet-ui .panel-backdrop.visible { opacity: 1; pointer-events: auto; }
-/* 道具バー・色パネルに移した物、タブレットでは使わない物は隠す */
-.tablet-ui #tool-section,
-.tablet-ui .panel-toggle,
-.tablet-ui .panel-resize,
-.tablet-ui #btn-dock-layers { display: none !important; }
+.tablet-ui .shape-menu-btn img { width: 26px; height: 26px; }
+.tablet-ui .optbar { height: 46px; }
+.tablet-ui .optbar button { height: 32px; padding: 0 12px; }
+.tablet-ui .menubar-btn,
+.tablet-ui header > button { height: 32px; }
 
-/* キャンバスの枠の中に移したボタン類 */
-.tablet-ui .canvas-stage .zoom-controls { position: absolute; right: 12px; bottom: 12px; }
-.tablet-ui .canvas-stage .ref-toggle { position: absolute; top: 30px; right: 12px; }
-/* 色の選択窓は、色パネルのある右側に出す */
-.tablet-ui #color-pick-modal { justify-content: flex-end; padding-left: 0; padding-right: 264px; }
-
-/* 縦向き：色パネルは下に横長で置く */
-@media (orientation: portrait) {
-  .tablet-ui .app {
-    grid-template-columns: 64px minmax(0, 1fr);
+/* ── 縦向き（タブレットなど）：右のパネルを下に横長で置く ── */
+@media (orientation: portrait) and (min-width: 641px) {
+  .app {
+    grid-template-columns: var(--rail) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas: "rail stage" "dock dock";
   }
-  /* 左の列に「今の色・描画サイズ（移動ツールのときは移動の対象）」、その右にカラーとカスタムカラー */
-  .tablet-ui .color-dock {
-    display: grid;
-    grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      "current palette custom"
-      "brush   palette custom"
-      "move    palette custom";
+  /* カラー・カスタムカラー・レイヤー（とボーン）を横に並べ、それぞれの中でスクロールする */
+  .dock {
+    width: auto;
+    height: 300px;
     border-left: none;
     border-top: 1px solid var(--border);
     overflow: hidden;
   }
-  .tablet-ui .color-dock > .panel-section { border-bottom: none; padding: 10px 12px; }
-  .tablet-ui .color-dock .dock-current { grid-area: current; }
-  .tablet-ui .color-dock .dock-brush { grid-area: brush; }
-  .tablet-ui .color-dock .dock-move { grid-area: move; }
-  .tablet-ui .color-dock .dock-palette { grid-area: palette; border-left: 1px solid var(--border); }
-  .tablet-ui .color-dock .dock-custom { grid-area: custom; border-left: 1px solid var(--border); }
-  .tablet-ui .color-dock .palette-grid { grid-template-columns: repeat(12, 1fr); }
-  .tablet-ui #color-pick-modal { justify-content: center; padding-right: 0; align-items: flex-end; padding-bottom: 260px; }
+  body.dock-open .dock {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .dock > .panel-section {
+    min-height: 0;
+    padding: 10px 12px;
+    border-bottom: none;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    touch-action: pan-y;
+  }
+  .dock > .panel-section:first-child { border-left: none; }
+  /* 色選択の窓は、下のパネルのすぐ上に出す */
+  .confirm-modal.modal-side,
+  body.dock-open .confirm-modal.modal-side {
+    justify-content: center;
+    align-items: flex-end;
+    padding-right: 0;
+    padding-bottom: 20px;
+  }
+  body.dock-open .confirm-modal.modal-side { padding-bottom: 316px; }
 }
 
-/* PEPORIS・絵の確認モードでは、道具バーと色パネルもほかの部品と同じく消す */
-@keyframes tetris-out-right  { to { transform: translateX(100%); } }
-@keyframes tetris-back-left  { from { transform: translateX(100%); } to { transform: none; } }
-body.tetris-out .tool-rail { animation: tetris-out-left 1.2s steps(6, end) forwards; }
-body.tetris-out .color-dock { animation: tetris-out-right 1.2s steps(6, end) forwards; }
-body.tetris-return .tool-rail { animation: tetris-back-right 1.2s steps(6, end); }
-body.tetris-return .color-dock { animation: tetris-back-left 1.2s steps(6, end); }
-body.tetris-playing .tool-rail,
-body.tetris-playing .color-dock { pointer-events: none; }
-body.art-preview .tool-rail,
-body.art-preview .color-dock,
-body.art-preview .color-dock * { visibility: hidden !important; }
+/* ── スマホ：道具バーは下、右のパネルは下から引き出す ── */
+@media (max-width: 640px) {
+  header { gap: 4px; padding: 0 6px; }
+  .menubar { gap: 0; }
+  .menubar-text { display: none; }
+  .menubar-btn { padding: 5px 7px; font-size: 15px; }
+  header > button { padding: 5px 8px; }
+  .artwork-chip { max-width: 70px; }
+  .optbar { height: 38px; gap: 10px; padding: 0 8px; }
+  .opt-group { padding-left: 10px; }
+  .opt-hint { display: none; }
+
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "stage" "rail";
+  }
+  .tool-rail,
+  .tablet-ui .tool-rail {
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 2px;
+    padding: 4px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
+  .tool-rail .rail-btn,
+  .tablet-ui .tool-rail .rail-btn {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 48px;
+    height: 42px;
+    font-size: 20px;
+  }
+  .rail-sep, .rail-spacer, #btn-finger-draw { display: none !important; }
+  /* 小窓は道具バーの上に、画面の幅いっぱいで開く */
+  .rail-item { position: static; flex: 1 1 0; max-width: 48px; }
+  .rail-item .rail-btn { flex: 1; max-width: none; }
+  .rail-popover {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 8px;
+    right: 8px;
+    min-width: 0;
+  }
+  .shape-menu-dropdown { width: auto; }
+
+  .dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    width: auto;
+    max-height: 62vh;
+    max-height: 62dvh;
+    border-left: none;
+    border-top: 1px solid var(--border-strong);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
+  }
+  body.dock-open .dock-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0,0,0,0.25);
+  }
+  .sheet { top: 8px; left: 8px; right: 8px; width: auto; max-width: none; max-height: calc(100% - 16px); }
+  .color-history { left: 8px; bottom: 10px; }
+  .zoom-controls { right: 8px; bottom: 8px; }
+  .confirm-modal.modal-side,
+  body.dock-open .confirm-modal.modal-side { justify-content: center; padding-right: 0; }
+}

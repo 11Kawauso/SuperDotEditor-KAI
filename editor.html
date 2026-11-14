@@ -10,10 +10,10 @@
   // ホーム画面のテトリスボタン（editor.html?tetris）から来たときは、エディタの画面を
   // 一瞬も見せずにテトリス画面にするため、準備ができるまでページ全体を隠しておく（tetris.jsが外す）
   if (new URLSearchParams(location.search).has('tetris')) document.documentElement.classList.add('tetris-direct');
-  // タブレット（iPadなど）では、道具を左・色を右に並べたお絵かきソフト風のレイアウトにする。
+  // タブレット（iPadなど）かどうかを見分ける（Pencil と指の使い分け・ボタンの大きさに使う）。
   // 指で操作する端末のうち、画面の短い辺が600px以上のもの（スマホは除く）。
   // iPadはトラックパッドをつなぐと指の端末と判定されないことがあるため、別に見分ける。
-  // ?tablet を付けて開くと、パソコンでもこのレイアウトを確認できる。
+  // ?tablet を付けて開くと、パソコンでもタブレットとしての動きを確認できる。
   (() => {
     const touch = matchMedia('(pointer: coarse)').matches
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -26,518 +26,206 @@
 </head>
 <body>
 
-<!-- ヘッダー -->
+<!-- ヘッダー：サイト名・メニュー・元に戻す -->
 <header>
   <h1><a class="home-link" href="index.html" title="ホームへ"><img class="home-icon" src="images/pixel-art_icon.png" alt="スーパードットエディター・改"><span class="home-name home-name-full">スーパードットエディター・改</span><span class="home-name home-name-short" title="スーパードットエディター・改（超＝スーパー、.＝ドット、田＝エディター画面のマス目）">超.田・改</span></a></h1>
-  <span class="artwork-chip" id="artwork-chip" style="display:none" title="開いているクラウド作品">📄 <span id="artwork-chip-name"></span></span>
-  <!-- 描画中のレイヤーと、今のツール（筆の状態） -->
-  <span class="status-chip" id="status-chip" style="display:none">
-    <span class="status-layer" id="status-layer"></span>
-    <span class="status-tool" id="status-tool"></span>
-  </span>
-  <div class="header-sep"></div>
-  <div class="bg-switcher">
-    <button class="bg-btn active" data-bg="#ffffff" title="白" style="background:#ffffff;"></button>
-    <button class="bg-btn" data-bg="#808080" title="灰色" style="background:#808080;"></button>
-    <button class="bg-btn" data-bg="#000000" title="黒" style="background:#000000;"></button>
-  </div>
-  <button id="btn-toggle-canvas" title="キャンバス表示切替">🔲</button>
-  <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
-  <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩ <span class="hide-mobile">元に戻す</span><kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
-  <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪ <span class="hide-mobile">やり直し</span><kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
-  <button id="btn-clear" class="danger">クリア</button>
 
-  <!-- タブレット用：レイヤーと設定のパネルを開くボタン -->
-  <button id="btn-tablet-layers" class="tablet-only" title="レイヤー">🗂</button>
-  <button id="btn-tablet-settings" class="tablet-only" title="設定（グリッドサイズ・画像から変換・トレース・表示など）">⚙️</button>
+  <!-- メニュー（たまに使うものはここにまとめる。開け閉めは layout.js） -->
+  <nav class="menubar" aria-label="メニュー">
+    <!-- ファイル -->
+    <div class="file-menu menu" id="file-menu">
+      <button id="btn-file-menu" class="menubar-btn" title="ファイル（新規・開く・保存・ログインなど）">📁<span class="menubar-text">ファイル</span></button>
+      <div class="file-dropdown menu-dropdown" id="file-dropdown" style="display:none">
 
-  <!-- ファイルメニュー -->
-  <div class="file-menu" id="file-menu">
-    <button id="btn-file-menu">📁 <span class="hide-mobile">ファイル</span> ▾</button>
-    <div class="file-dropdown" id="file-dropdown" style="display:none">
+        <button id="btn-new-canvas" class="menu-item">🆕 新規キャンバス</button>
+        <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">📂 作品ファイルを開く</button>
+        <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
 
-      <button id="btn-new-canvas" class="menu-item">🆕 新規キャンバス</button>
-      <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">📂 作品ファイルを開く</button>
-      <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
+        <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">🤖 AI に描いてもらう</button>
 
-      <button id="btn-menu-timeline" class="menu-item" title="アニメーションのコマの一覧を出す・しまう">🎞 アニメーション（コマ）</button>
-      <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">🤖 AI に描いてもらう</button>
-
-      <div id="save-menu-group">
-        <button id="btn-menu-save" class="menu-item">💾 保存 ▸</button>
-        <div class="menu-submenu" id="save-subdropdown" style="display:none">
-          <button id="btn-download" class="menu-item">↓ PNG保存</button>
-          <button id="btn-download-transparent" class="menu-item">↓ 透過保存</button>
-          <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">🎞 GIF保存</button>
-          <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">📄 作品ファイルとして保存</button>
-          <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">🧱 PEPORISに保存</button>
-          <div id="cloud-save-menu" style="display:none">
-            <button id="btn-cloud-save" class="menu-item">☁ クラウド保存 ▸</button>
-            <div class="menu-submenu" id="cloud-save-dropdown" style="display:none">
-              <button id="btn-cloud-save-new" class="menu-item">🆕 新規保存</button>
-              <button id="btn-cloud-save-over" class="menu-item">♻️ 上書き保存</button>
+        <div id="save-menu-group">
+          <button id="btn-menu-save" class="menu-item">💾 保存 ▸</button>
+          <div class="menu-submenu" id="save-subdropdown" style="display:none">
+            <button id="btn-download" class="menu-item">↓ PNG保存</button>
+            <button id="btn-download-transparent" class="menu-item">↓ 透過保存</button>
+            <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">🎞 GIF保存</button>
+            <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">📄 作品ファイルとして保存</button>
+            <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">🧱 PEPORISに保存</button>
+            <div id="cloud-save-menu" style="display:none">
+              <button id="btn-cloud-save" class="menu-item">☁ クラウド保存 ▸</button>
+              <div class="menu-submenu" id="cloud-save-dropdown" style="display:none">
+                <button id="btn-cloud-save-new" class="menu-item">🆕 新規保存</button>
+                <button id="btn-cloud-save-over" class="menu-item">♻️ 上書き保存</button>
+              </div>
             </div>
           </div>
         </div>
+
+        <button id="btn-gallery" class="menu-item" style="display:none">🖼 ギャラリー</button>
+        <button id="btn-logout" class="menu-item" style="display:none">⏻ ログアウト</button>
+        <button id="btn-login" class="menu-item">G ログイン</button>
+
+        <div class="menu-divider"></div>
+        <a class="menu-item" href="help.html" target="_blank" rel="noopener">❓ ヘルプ・使い方</a>
+        <a class="menu-item" href="terms.html" target="_blank" rel="noopener">📄 利用規約</a>
+        <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">🔒 プライバシーポリシー</a>
       </div>
-
-      <button id="btn-gallery" class="menu-item" style="display:none">🖼 ギャラリー</button>
-      <button id="btn-logout" class="menu-item" style="display:none">⏻ ログアウト</button>
-      <button id="btn-login" class="menu-item">G ログイン</button>
-
-      <div class="menu-divider"></div>
-      <a class="menu-item" href="help.html" target="_blank" rel="noopener">❓ ヘルプ・使い方</a>
-      <a class="menu-item" href="terms.html" target="_blank" rel="noopener">📄 利用規約</a>
-      <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">🔒 プライバシーポリシー</a>
     </div>
-  </div>
+
+    <!-- キャンバス -->
+    <div class="menu" id="menu-canvas">
+      <button class="menubar-btn" title="キャンバス（グリッドサイズ・列や行の強調・クリア）">🔲<span class="menubar-text">キャンバス</span></button>
+      <div class="menu-dropdown" style="display:none">
+        <button class="menu-item" data-sheet="grid">📏 グリッドサイズ…</button>
+        <button class="menu-item" data-sheet="highlight">🎯 列・行を強調…</button>
+        <div class="menu-divider"></div>
+        <button id="btn-clear" class="menu-item danger" title="今のレイヤーの絵を消します（元に戻せます）">🧽 今のレイヤーをクリア</button>
+      </div>
+    </div>
+
+    <!-- 画像 -->
+    <div class="menu" id="menu-image">
+      <button class="menubar-btn" title="画像（画像から変換・トレース・参考画像）">🖼<span class="menubar-text">画像</span></button>
+      <div class="menu-dropdown" style="display:none">
+        <button class="menu-item" data-sheet="convert" title="写真などの画像をドット絵に変換して、新しいレイヤーとして重ねます">🪄 画像から変換…</button>
+        <button class="menu-item" data-sheet="trace" title="画像をキャンバスに半透明で敷いて、なぞって描きます">✍️ トレース（下絵）…</button>
+        <button class="menu-item" id="btn-ref-toggle" title="参考画像を表示">📌 参考画像を浮かべる</button>
+      </div>
+    </div>
+
+    <!-- 表示 -->
+    <div class="menu" id="menu-view">
+      <button class="menubar-btn" title="表示（グリッド線・定規・背景・アニメーション）">🖥<span class="menubar-text">表示</span></button>
+      <div class="menu-dropdown" style="display:none">
+        <label class="menu-check"><input type="checkbox" id="show-grid" checked> グリッド線</label>
+        <label class="menu-check"><input type="checkbox" id="show-rulers" checked> 定規</label>
+        <label class="menu-check" title="マス数が偶数なら真ん中のマスの境目に線を、奇数なら真ん中の列・行を色付けして表示します"><input type="checkbox" id="show-center-lines" checked> 中心線</label>
+        <label class="menu-check" title="透明なところの目印の市松模様を出す・消す"><input type="checkbox" id="show-checker" checked> 市松模様（透明の目印）</label>
+        <div class="menu-row" title="キャンバスの周りの色。描いた絵の色は変わりません">
+          <span>周りの色</span>
+          <div class="bg-switcher">
+            <button class="bg-btn active" data-bg="#ffffff" title="白" style="background:#ffffff;"></button>
+            <button class="bg-btn" data-bg="#808080" title="灰色" style="background:#808080;"></button>
+            <button class="bg-btn" data-bg="#000000" title="黒" style="background:#000000;"></button>
+          </div>
+        </div>
+        <div class="menu-divider"></div>
+        <button id="btn-menu-timeline" class="menu-item" title="アニメーションのコマの一覧を出す・しまう">🎞 アニメーション（コマの一覧）</button>
+        <div class="menu-hint">D キー（または右下の 👁）を押している間は、描いた絵だけを表示します</div>
+      </div>
+    </div>
+  </nav>
+
+  <span class="artwork-chip" id="artwork-chip" style="display:none" title="開いているクラウド作品">📄 <span id="artwork-chip-name"></span></span>
+  <div class="header-sep"></div>
+
+  <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
+  <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩ <span class="header-text">元に戻す</span><kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
+  <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪ <span class="header-text">やり直し</span><kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
+  <button id="btn-dock-toggle" title="色とレイヤーのパネルを出す・しまう">🎨</button>
 
   <div class="user-chip" id="user-chip" style="display:none">
     <img id="user-avatar" alt="" referrerpolicy="no-referrer">
   </div>
 </header>
 
-<!-- メイン -->
+<!-- 今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
+<div class="optbar" id="optbar">
+  <!-- 今のツールと、描画中のレイヤー -->
+  <span class="status-chip" id="status-chip" style="display:none">
+    <span class="status-tool" id="status-tool"></span>
+    <span class="status-layer" id="status-layer"></span>
+  </span>
+
+  <!-- 描画サイズ（ペン・消しゴム・図形） -->
+  <div class="opt-group" id="opt-brush">
+    <span class="opt-label">サイズ</span>
+    <input type="range" id="brush-slider" min="1" max="10" value="1" step="1" title="描画サイズ（一度に塗る大きさ）">
+    <span class="brush-size-val" id="brush-val">1</span>
+  </div>
+
+  <!-- 描画スタイル（ペン・消しゴム） -->
+  <div class="opt-group" id="draw-style-section">
+    <span class="opt-label">描き方</span>
+    <button class="style-btn active" data-style="normal" title="押したマスだけを塗ります">通常</button>
+    <button class="style-btn" data-style="col" title="押したマスの縦一列をまとめて塗ります">縦</button>
+    <button class="style-btn" data-style="row" title="押したマスの横一列をまとめて塗ります">横</button>
+    <label class="detect-line-label" id="detect-line-label" style="display:none;" title="描き始めたマスと違う色にぶつかったところで止まります">
+      <input type="checkbox" id="detect-line" style="accent-color:var(--accent)">
+      線を検知
+    </label>
+  </div>
+
+  <!-- 移動の対象（移動ツール） -->
+  <div class="opt-group" id="move-target-section" style="display:none" title="選択範囲があれば、その範囲だけを動かします">
+    <span class="opt-label">動かすもの</span>
+    <button class="move-target-btn active" data-all="0" title="描画中のレイヤーだけを動かします">このレイヤー</button>
+    <button class="move-target-btn" data-all="1" title="ロックされていない全レイヤーをまとめて動かします">全レイヤー</button>
+  </div>
+
+  <!-- ボーン（骨の一覧やポーズは右のパネルに出る。動きは bones.js） -->
+  <div class="opt-group" id="opt-bone" style="display:none">
+    <button class="bone-mode-btn active" data-bone-mode="build" title="関節から先へドラッグして骨を置きます">骨を置く</button>
+    <button class="bone-mode-btn" data-bone-mode="pose" title="骨の先をドラッグして回し、ポーズを付けます">ポーズ</button>
+  </div>
+
+  <!-- 選択（選んでいる間・選択範囲があるとき・貼り付けられるものがあるとき） -->
+  <div class="opt-group" id="opt-select" style="display:none">
+    <span class="opt-pair" id="range-mode-row" style="display:none;">
+      <button class="sel-btn active" id="btn-range-rect">四角で囲う</button>
+      <button class="sel-btn" id="btn-range-free">自分で指定</button>
+    </span>
+    <label class="detect-line-label" id="range-autoclose-label" style="display:none;" title="オフの場合、始点まで戻らないとなぞった軌跡のみが選択されます">
+      <input type="checkbox" id="range-autoclose" checked style="accent-color:var(--accent)">
+      始点まで自動でつなぐ
+    </label>
+    <button class="sel-btn" id="btn-cut" disabled title="切り取り（Ctrl+X）">切り取り</button>
+    <button class="sel-btn" id="btn-copy" disabled title="コピー（Ctrl+C）">コピー</button>
+    <button class="sel-btn" id="btn-paste" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
+    <button id="btn-sel-clear" class="danger" style="display:none;">選択解除</button>
+  </div>
+
+  <!-- 今の道具のひとこと説明（幅に余裕があるときだけ出る） -->
+  <span class="opt-hint" id="opt-hint"></span>
+</div>
+
+<!-- メイン：左に道具・中央にキャンバス・右に色とレイヤー -->
 <div class="app">
 
-  <!-- 左パネル -->
-  <div class="panel" id="panel">
-
-    <!-- パネルタブ -->
-    <div class="panel-tabs">
-      <button class="panel-tab-btn active" id="tab-draw">✏️ 描画</button>
-      <button class="panel-tab-btn" id="tab-layers">🗂 レイヤー</button>
-      <button class="panel-tab-arrow" id="btn-dock-layers" title="レイヤーパネルを右に並べて表示">▶</button>
-    </div>
-
-    <!-- 描画タブ -->
-    <div class="panel-tab-page" id="panel-tab-draw">
-
-    <!-- ツール -->
-    <div class="panel-section" id="tool-section">
-      <div class="panel-label">ツール</div>
-      <div class="tool-grid">
-        <button class="tool-btn active" data-tool="pen" title="ペン（Q）">✏️ ペン<kbd class="key-hint">Q</kbd></button>
-        <button class="tool-btn" data-tool="fill" title="塗り潰し（W）">🪣 塗り潰し<kbd class="key-hint">W</kbd></button>
-        <button class="tool-btn" data-tool="erase" title="消しゴム（A）">🧹 消しゴム<kbd class="key-hint">A</kbd></button>
-        <button class="tool-btn" data-tool="pick" title="スポイト（S）">💉 スポイト<kbd class="key-hint">S</kbd></button>
-        <button class="tool-btn" data-tool="move" title="移動（V）：選択範囲の中身（選択が無ければレイヤー全体）をドラッグや矢印キーで動かします">✥ 移動<kbd class="key-hint">V</kbd></button>
-        <button class="tool-btn" data-tool="bone" title="ボーン（B）：部品ごとのレイヤーに骨を入れて、ポーズを付けたりコマを作ったりします">🦴 ボーン<kbd class="key-hint">B</kbd></button>
-      </div>
-    </div>
-
-    <!-- 選択 -->
-    <div class="panel-section" id="selection-section">
-      <div class="panel-label">選択</div>
-      <div class="tool-grid" style="grid-template-columns:1fr 1fr 1fr;">
-        <button class="sel-btn" id="btn-sel-range">📐 範囲</button>
-        <button class="sel-btn" id="btn-sel-color">🎨 色</button>
-        <button class="sel-btn" id="btn-sel-flood">💧 隣接色</button>
-      </div>
-      <div class="tool-grid" id="range-mode-row" style="grid-template-columns:1fr 1fr; margin-top:6px; display:none;">
-        <button class="sel-btn active" id="btn-range-rect">四角で囲う</button>
-        <button class="sel-btn" id="btn-range-free">自分で指定</button>
-      </div>
-      <label class="detect-line-label" id="range-autoclose-label" style="display:none;" title="オフの場合、始点まで戻らないとなぞった軌跡のみが選択されます">
-        <input type="checkbox" id="range-autoclose" checked style="accent-color:var(--accent)">
-        始点まで自動でつなぐ
-      </label>
-      <div class="tool-grid" style="grid-template-columns:1fr 1fr 1fr; margin-top:6px;">
-        <button class="sel-btn" id="btn-cut" disabled title="切り取り（Ctrl+X）">切り取り</button>
-        <button class="sel-btn" id="btn-copy" disabled title="コピー（Ctrl+C）">コピー</button>
-        <button class="sel-btn" id="btn-paste" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
-      </div>
-      <button id="btn-sel-clear" class="danger" style="width:100%; margin-top:6px; display:none;">選択解除</button>
-    </div>
-
-    <!-- 描画スタイル -->
-    <div class="panel-section" id="draw-style-section">
-      <div class="panel-label">描画スタイル</div>
-      <div class="tool-grid">
-        <button class="style-btn active" data-style="normal">通常</button>
-        <button class="style-btn" data-style="col">縦</button>
-        <button class="style-btn" data-style="row">横</button>
-      </div>
-      <label class="detect-line-label" id="detect-line-label" style="display:none;">
-        <input type="checkbox" id="detect-line" style="accent-color:var(--accent)">
-        線を検知
-      </label>
-    </div>
-
-    <!-- 移動の対象（移動ツールのときだけ表示） -->
-    <div class="panel-section" id="move-target-section" style="display:none">
-      <div class="panel-label">移動の対象</div>
-      <div class="tool-grid">
-        <button class="move-target-btn active" data-all="0" title="描画中のレイヤーだけを動かします">このレイヤー</button>
-        <button class="move-target-btn" data-all="1" title="ロックされていない全レイヤーをまとめて動かします">全レイヤー</button>
-      </div>
-      <div class="layer-hint">選択範囲があれば、その範囲だけを動かします</div>
-    </div>
-
-    <!-- ボーン（ボーンツールのときだけ表示。動きは bones.js） -->
-    <div class="panel-section" id="bone-section" style="display:none">
-      <div class="panel-label">ボーン</div>
-      <div class="tool-grid">
-        <button class="bone-mode-btn active" data-bone-mode="build" title="関節から先へドラッグして骨を置きます">骨を置く</button>
-        <button class="bone-mode-btn" data-bone-mode="pose" title="骨の先をドラッグして回し、ポーズを付けます">ポーズ</button>
-      </div>
-      <div class="layer-hint" id="bone-hint"></div>
-      <div class="bone-list" id="bone-list"></div>
-      <div class="tool-grid" id="bone-build-actions" style="margin-top:6px;">
-        <button id="btn-bone-auto" title="レイヤーごとに、絵のまん中にいちばん近い骨を割り当てます">自動で割り当て</button>
-        <button id="btn-bone-delete" class="danger" title="選んでいる骨を削除します（先につながった骨は残ります）">骨を削除</button>
-      </div>
-      <div id="bone-pose-box" style="display:none;">
-        <div class="tool-grid" style="margin-top:6px;">
-          <button id="btn-pose-reset" title="骨を描いたときの形に戻します">形を戻す</button>
-          <button id="btn-pose-save" class="primary" title="今のポーズを覚えます">ポーズを覚える</button>
-        </div>
-        <div class="bone-pose-list" id="bone-pose-list"></div>
-        <div class="panel-label" style="margin-top:10px;">コマを作る</div>
-        <div class="bone-gen-row">
-          <select id="bone-gen-from" aria-label="始めのポーズ"></select>
-          <span>→</span>
-          <select id="bone-gen-to" aria-label="終わりのポーズ"></select>
-        </div>
-        <div class="bone-gen-row">
-          <label for="bone-gen-count">間のコマ</label>
-          <input type="number" id="bone-gen-count" min="0" max="30" value="3">
-        </div>
-        <label class="detect-line-label"><input type="checkbox" id="bone-gen-back" style="accent-color:var(--accent)"> 往復させる（戻りのコマも作る）</label>
-        <label class="detect-line-label"><input type="checkbox" id="bone-gen-ease" checked style="accent-color:var(--accent)"> なめらか（ゆっくり始まって止まる）</label>
-        <button id="btn-bone-generate" class="primary" style="width:100%; margin-top:6px;">コマを作る</button>
-      </div>
-    </div>
-
-    <!-- 描画サイズ -->
-    <div class="panel-section">
-      <div class="panel-label">描画サイズ</div>
-      <div class="brush-size-row">
-        <input type="range" id="brush-slider" min="1" max="10" value="1" step="1">
-        <span class="brush-size-val" id="brush-val">1</span>
-      </div>
-    </div>
-
-    <!-- グリッドサイズ -->
-    <div class="panel-section">
-      <div class="panel-label">グリッドサイズ</div>
-      <div class="size-presets">
-        <button class="preset-btn" data-size="8">8</button>
-        <button class="preset-btn" data-size="16">16</button>
-        <button class="preset-btn active" data-size="32">32</button>
-        <button class="preset-btn" data-size="64">64</button>
-        <button class="preset-btn" data-size="128">128</button>
-        <button class="preset-btn" data-size="256">256</button>
-        <button class="preset-btn" data-size="512">512</button>
-        <button class="preset-btn" data-size="1024">1024</button>
-      </div>
-      <div class="size-row">
-        <label>全体</label>
-        <input type="range" id="both-slider" min="4" max="1024" value="32" step="1">
-        <input type="number" class="size-input" id="both-val" min="4" max="1024" value="32">
-      </div>
-      <div class="size-row">
-        <label>列</label>
-        <input type="range" id="cols-slider" min="4" max="1024" value="32" step="1">
-        <input type="number" class="size-input" id="cols-val" min="4" max="1024" value="32">
-      </div>
-      <div class="size-row">
-        <label>行</label>
-        <input type="range" id="rows-slider" min="4" max="1024" value="32" step="1">
-        <input type="number" class="size-input" id="rows-val" min="4" max="1024" value="32">
-      </div>
-      <button id="btn-resize" style="width:100%; margin-top:4px;">適用</button>
-    </div>
-
-    <!-- カラー -->
-    <!-- 右上のボタンで中身（.popout-body）を画面上の小窓に切り出せる（script.js の「パレットの切り出し」） -->
-    <div class="panel-section" data-popout="color" data-popout-title="カラー">
-      <div class="panel-label panel-label-row">カラー<button class="popout-btn" title="パネルから切り出して、画面の好きな場所に置く"></button></div>
-      <div class="popout-placeholder">画面に切り出しています</div>
-      <div class="popout-body">
-      <div class="palette-grid" id="palette"></div>
-      <button id="btn-open-color-wheel" class="color-wheel-open" title="輪っか状のカラーピッカーで、描く色を自由に選ぶ">🎨 色を選ぶ</button>
-      </div>
-    </div>
-
-    <!-- カスタムカラーパレット -->
-    <div class="panel-section" data-popout="custom" data-popout-title="カスタムカラー">
-      <div class="panel-label panel-label-row">カスタムカラー<button class="popout-btn" title="パネルから切り出して、画面の好きな場所に置く"></button></div>
-      <div class="popout-placeholder">画面に切り出しています</div>
-      <div class="popout-body">
-      <div class="palette-grid" id="custom-palette"></div>
-      <div class="custom-palette-actions">
-        <button id="btn-delete-mode">削除</button>
-        <button id="btn-delete-all" class="danger">全削除</button>
-      </div>
-      <div class="custom-palette-actions">
-        <button id="btn-palette-export" title="カスタムカラーをファイルに書き出す（.hex / .gpl）">書き出し</button>
-        <button id="btn-palette-import" title="パレットファイルを読み込む（.hex / .gpl / .pal / .txt / .png）">読み込み</button>
-      </div>
-      <input type="file" id="palette-file-input" accept=".hex,.gpl,.pal,.txt,.png,.gif,.bmp" style="display:none">
-      <div class="layer-hint" id="custom-palette-hint" style="display:none"></div>
-      </div>
-    </div>
-
-    <!-- パレット書き出し形式の選択モーダル -->
-    <div class="confirm-modal" id="palette-export-modal" style="display:none">
-      <div class="confirm-card">
-        <p>書き出す形式を選んでください</p>
-        <div class="palette-export-options">
-          <button id="btn-export-hex" class="primary">.hex<span>Lospec など</span></button>
-          <button id="btn-export-gpl" class="primary">.gpl<span>GIMP・Aseprite など</span></button>
-        </div>
-        <div class="confirm-actions">
-          <button id="btn-export-cancel">キャンセル</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 色選択モーダル -->
-    <div class="confirm-modal modal-left" id="color-pick-modal" style="display:none">
-      <div class="confirm-card color-pick-card">
-        <p>色を選択してください</p>
-        <!-- 輪っか状のカラーピッカー（colorwheel.js が描く） -->
-        <div class="color-wheel" id="color-wheel"></div>
-        <div class="color-pick-row">
-          <div class="color-compare" title="左：元の色　右：新しい色">
-            <span id="color-old"></span><span id="color-new"></span>
-          </div>
-          <input type="text" id="color-hex" class="color-hex-input" maxlength="7" spellcheck="false" autocomplete="off" aria-label="色のコード（#RRGGBB）">
-          <button id="btn-color-eyedropper" title="画面から色を拾う" style="display:none">💉</button>
-        </div>
-        <input type="hidden" id="custom-color-picker" value="#ff0000">
-        <div class="confirm-actions">
-          <button id="btn-color-ok" class="primary">OK</button>
-          <button id="btn-color-cancel">キャンセル</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 全削除確認モーダル -->
-    <div class="confirm-modal" id="confirm-delete-all" style="display:none">
-      <div class="confirm-card">
-        <p>カスタムカラーをすべて削除しますか？</p>
-        <div class="confirm-actions">
-          <button id="btn-confirm-ok" class="primary">OK</button>
-          <button id="btn-confirm-no">いいえ</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 画像から変換 -->
-    <div class="panel-section">
-      <div class="panel-label">画像から変換</div>
-      <div id="drop-zone">
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2M12 4v12m-4-4l4-4 4 4"/>
-        </svg>
-        クリックまたは<br>ドロップで画像を選択
-        <input type="file" id="file-input" accept="image/*" style="display:none">
-      </div>
-      <div style="margin-top:8px;">
-        <div class="panel-label" style="margin-bottom:4px;">変換方式</div>
-        <div class="method-row">
-          <button class="method-btn active" data-method="mode">最頻色</button>
-          <button class="method-btn" data-method="avg">平均色</button>
-        </div>
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:6px;">
-          <input type="checkbox" id="convert-use-palette" style="accent-color:var(--accent)">
-          指定した色だけで変換する
-        </label>
-
-        <!-- 色数（パレット未使用時） -->
-        <div id="convert-count-group">
-          <div class="panel-label" style="margin-bottom:4px;">色数</div>
-          <div class="color-count-grid">
-            <button class="cc-btn" data-colors="8"><span class="cc-num">8色</span><span class="cc-label">超レトロ</span></button>
-            <button class="cc-btn" data-colors="16"><span class="cc-num">16色</span><span class="cc-label">レトロ</span></button>
-            <button class="cc-btn active" data-colors="32"><span class="cc-num">32色</span><span class="cc-label">標準</span></button>
-            <button class="cc-btn" data-colors="64"><span class="cc-num">64色</span><span class="cc-label">高品質</span></button>
-            <button class="cc-btn" data-colors="128"><span class="cc-num">128色</span><span class="cc-label">超高品質</span></button>
-          </div>
-        </div>
-
-        <!-- 変換用パレット（パレット使用時） -->
-        <div id="convert-palette-group" style="display:none;">
-          <div class="panel-label" style="margin-bottom:4px;">変換に使う色</div>
-          <div class="palette-grid" id="convert-palette"></div>
-          <div class="custom-palette-actions">
-            <button id="btn-cp-delete-mode">削除</button>
-            <button id="btn-cp-delete-all" class="danger">全削除</button>
-          </div>
-          <div class="layer-hint" id="convert-palette-hint">＋から色を追加してください</div>
-        </div>
-
-        <!-- 仕上げ：背景を消す・輪郭線（script.js の finishConvertedArt） -->
-        <label class="convert-check" title="背景が1色の画像で、背景を透明にします（透明な画像はそのまま）">
-          <input type="checkbox" id="convert-remove-bg" style="accent-color:var(--accent)">
-          背景を消す（背景が1色の画像）
-        </label>
-        <label class="convert-check" title="縮めると消えてしまう線を、元の画像から調べて描き足します">
-          <input type="checkbox" id="convert-outline" style="accent-color:var(--accent)">
-          輪郭線を付ける
-        </label>
-        <div id="convert-outline-options" class="convert-outline-options" style="display:none;">
-          <div class="panel-label" style="margin-bottom:4px;">線の色</div>
-          <div class="outline-color-row">
-            <button class="outline-opt active" data-outline-color="auto" title="隣の色を暗くした色で、なじむ線にします">隣の色を暗く</button>
-            <button class="outline-opt" data-outline-color="fixed" title="右の色1色で線を引きます">1色</button>
-            <input type="color" id="convert-outline-hex" value="#1e1e2a" title="線の色">
-          </div>
-          <div class="panel-label" style="margin:6px 0 4px;">内側の線</div>
-          <div class="outline-inner-row">
-            <button class="outline-opt" data-outline-inner="none">なし</button>
-            <button class="outline-opt" data-outline-inner="low">少なめ</button>
-            <button class="outline-opt active" data-outline-inner="mid">普通</button>
-            <button class="outline-opt" data-outline-inner="high">多め</button>
-          </div>
-          <div class="layer-hint">外側の線は、背景が透明か1色の画像で付きます</div>
-        </div>
-
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:8px;">
-          <input type="checkbox" id="convert-resize-canvas" checked style="accent-color:var(--accent)">
-          画像サイズに合わせてキャンバスサイズを変更
-        </label>
-        <button id="btn-convert" style="width:100%; margin-top:8px;" disabled>変換する</button>
-      </div>
-    </div>
-
-    <!-- トレース -->
-    <div class="panel-section">
-      <div class="panel-label">トレース</div>
-      <div id="trace-drop-zone">
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2M12 4v12m-4-4l4-4 4 4"/>
-        </svg>
-        クリックまたは<br>ドロップで参考画像を選択
-        <input type="file" id="trace-file-input" accept="image/*" style="display:none">
-      </div>
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:8px;">
-        <input type="checkbox" id="trace-resize-canvas" style="accent-color:var(--accent)">
-        画像サイズに合わせてキャンバスサイズを変更
-      </label>
-      <div class="brush-size-row" style="margin-top:8px;">
-        <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">不透明度</span>
-        <input type="range" id="trace-opacity" min="0" max="100" value="50" step="1">
-        <span class="brush-size-val" id="trace-opacity-val">50</span>
-      </div>
-      <div class="panel-label" style="margin:8px 0 4px;">重ね順</div>
-      <div class="tool-grid">
-        <button class="trace-pos-btn active" data-trace-pos="below">⬇ レイヤーの下</button>
-        <button class="trace-pos-btn" data-trace-pos="above">⬆ レイヤーの上</button>
-      </div>
-      <button id="btn-trace-remove" class="danger" style="width:100%; margin-top:8px; display:none;">トレース画像を削除</button>
-      <div class="layer-hint">キャンバスの下描き用の参考表示です。保存には含まれません</div>
-    </div>
-
-    <!-- グリッド表示 -->
-    <div class="panel-section">
-      <div class="panel-label">表示</div>
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-        <input type="checkbox" id="show-grid" checked style="accent-color:var(--accent)">
-        グリッド線を表示
-      </label>
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:6px;">
-        <input type="checkbox" id="show-rulers" checked style="accent-color:var(--accent)">
-        定規を表示
-      </label>
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:6px;" title="マス数が偶数なら真ん中のマスの境目に線を、奇数なら真ん中の列・行を色付けして表示します">
-        <input type="checkbox" id="show-center-lines" checked style="accent-color:var(--accent)">
-        中心線を表示
-      </label>
-      <div class="layer-hint">D キー（または右下の 👁）を押している間は、描いた絵だけを表示します</div>
-    </div>
-
-    <!-- 定規で強調 -->
-    <div class="panel-section">
-      <div class="panel-label">列・行を強調</div>
-      <div class="line-input-row">
-        <label for="col-range-input">列</label>
-        <input type="text" id="col-range-input" class="line-range-input" inputmode="numeric" placeholder="例：60 / 60-80" autocomplete="off">
-      </div>
-      <div class="line-input-row">
-        <label for="row-range-input">行</label>
-        <input type="text" id="row-range-input" class="line-range-input" inputmode="numeric" placeholder="例：5 / 5-12" autocomplete="off">
-      </div>
-      <button id="btn-line-clear" style="width:100%; margin-top:6px;">強調を解除</button>
-      <div class="layer-hint">左上が (1,1) です。定規をクリック・ドラッグしても選べます</div>
-    </div>
-
-    </div>
-
-    <!-- レイヤータブ -->
-    <div class="panel-tab-page" id="panel-tab-layers" style="display:none;">
-
-    <!-- レイヤー -->
-    <div class="panel-section">
-      <div class="panel-label">レイヤー</div>
-      <div class="layer-opacity-row">
-        <label for="layer-opacity">不透明度</label>
-        <input type="range" id="layer-opacity" min="0" max="100" value="100" step="1">
-        <span class="layer-opacity-val" id="layer-opacity-val">100</span>
-      </div>
-      <div class="layer-list" id="layer-list"></div>
-      <div class="layer-actions">
-        <button id="btn-layer-add" title="レイヤーを追加">＋ 追加</button>
-        <button id="btn-layer-up" title="レイヤーを上へ移動">↑</button>
-        <button id="btn-layer-down" title="レイヤーを下へ移動">↓</button>
-        <button id="btn-layer-delete" class="danger" title="レイヤーを削除">🗑</button>
-      </div>
-      <div class="layer-actions" style="margin-top:5px;">
-        <button id="btn-layer-dup" title="レイヤーを複製">⧉ 複製</button>
-        <button id="btn-layer-merge" title="下のレイヤーと結合">⬇ 下と結合</button>
-        <button id="btn-layer-lock" title="レイヤーをロック">🔒</button>
-      </div>
-      <div class="layer-actions" style="margin-top:5px;">
-        <button id="btn-layer-flip-h" title="レイヤーを左右反転">⬌ 左右反転</button>
-        <button id="btn-layer-flip-v" title="レイヤーを上下反転">⬍ 上下反転</button>
-      </div>
-      <div class="layer-hint">名前はダブルクリック（ダブルタップ）で変更できます</div>
-    </div>
-
-    </div>
-
-  </div>
-
-  <!-- リサイズハンドル -->
-  <div class="panel-resize" id="panel-resize"></div>
-
-  <!-- レイヤーパネルのドック（右に並べて表示するときの入れ物） -->
-  <div class="layer-dock" id="layer-dock" style="display:none">
-    <div class="layer-dock-header">
-      <span>🗂 レイヤー</span>
-      <button id="btn-undock-layers" title="タブ表示に戻す">◀</button>
-    </div>
-    <!-- ここに #panel-tab-layers を移動して表示する -->
-  </div>
-
-  <!-- モバイル用背景オーバーレイ -->
-  <div class="panel-backdrop" id="panel-backdrop"></div>
-
-  <!-- パネル開閉ボタン -->
-  <button class="panel-toggle" id="panel-toggle" title="パネルの表示切替">◀</button>
-
-  <!-- タブレット用の道具バー（タブレットのときだけ表示。中身の一部は tablet.js がパネルから移す） -->
+  <!-- 道具バー -->
   <nav class="tool-rail" id="tool-rail" aria-label="道具">
-    <button class="tool-btn rail-btn active" data-tool="pen" title="ペン">✏️</button>
-    <button class="tool-btn rail-btn" data-tool="fill" title="塗り潰し">🪣</button>
-    <button class="tool-btn rail-btn" data-tool="erase" title="消しゴム">🧹</button>
-    <button class="tool-btn rail-btn" data-tool="pick" title="スポイト">💉</button>
-    <button class="tool-btn rail-btn" data-tool="move" title="移動">✥</button>
-    <button class="tool-btn rail-btn" data-tool="bone" title="ボーン">🦴</button>
+    <button class="tool-btn rail-btn active" data-tool="pen" title="ペン（Q）">✏️</button>
+    <button class="tool-btn rail-btn" data-tool="fill" title="塗り潰し（W）">🪣</button>
+    <button class="tool-btn rail-btn" data-tool="erase" title="消しゴム（A）">🧹</button>
+    <button class="tool-btn rail-btn" data-tool="pick" title="スポイト（S）">💉</button>
+    <button class="tool-btn rail-btn" data-tool="move" title="移動（V）：選択範囲の中身（選択が無ければレイヤー全体）をドラッグや矢印キーで動かします">✥</button>
     <div class="rail-sep"></div>
     <div class="rail-item">
-      <button class="rail-btn" data-popover="rail-pop-select" title="選択・切り取り・コピー・貼り付け">📐</button>
-      <div class="rail-popover" id="rail-pop-select"></div>
+      <button class="rail-btn" id="btn-rail-select" data-popover="rail-pop-select" title="選択（範囲・同じ色・つながった同じ色）">📐</button>
+      <div class="rail-popover" id="rail-pop-select">
+        <button class="sel-btn" id="btn-sel-range" title="ドラッグで選びます">📐 範囲</button>
+        <button class="sel-btn" id="btn-sel-color" title="押したマスと同じ色を、キャンバス全体から選びます">🎨 色</button>
+        <button class="sel-btn" id="btn-sel-flood" title="押したマスとつながった同じ色だけを選びます">💧 隣接色</button>
+      </div>
     </div>
-    <div class="rail-item">
-      <button class="rail-btn" data-popover="rail-pop-style" title="描画スタイル（通常・縦一列・横一列）">↕</button>
-      <div class="rail-popover" id="rail-pop-style"></div>
+    <!-- テンプレート図形 -->
+    <div class="rail-item shape-menu" id="shape-menu">
+      <button class="rail-btn shape-menu-btn" id="btn-shape-menu" title="テンプレート図形"><img src="images/shape-icon.png" alt="テンプレート図形"></button>
+      <div class="rail-popover shape-menu-dropdown" id="shape-menu-dropdown" style="display:none;">
+        <button class="shape-opt" data-shape="line" data-fill="1">📏 直線</button>
+        <button class="shape-opt" data-shape="circle" data-fill="1">⚫ 円</button>
+        <button class="shape-opt" data-shape="circle" data-fill="0">⚪ 円（枠のみ）</button>
+        <button class="shape-opt" data-shape="rect" data-fill="1">⬛ 四角</button>
+        <button class="shape-opt" data-shape="rect" data-fill="0">⬜ 四角（枠のみ）</button>
+        <button class="shape-opt" data-shape="diamond" data-fill="1">🔶 ひし形</button>
+        <button class="shape-opt" data-shape="diamond" data-fill="0">🔷 ひし形（枠のみ）</button>
+        <button class="shape-opt" data-shape="heart" data-fill="1">❤️ ハート</button>
+        <button class="shape-opt" data-shape="heart" data-fill="0">🤍 ハート（枠のみ）</button>
+      </div>
     </div>
-    <div class="rail-item" id="rail-shape-slot"></div>
+    <button class="tool-btn rail-btn" data-tool="bone" title="ボーン（B）：部品ごとのレイヤーに骨を入れて、ポーズを付けたりコマを作ったりします">🦴</button>
     <div class="rail-spacer"></div>
-    <button class="rail-btn" id="btn-finger-draw">☝️</button>
+    <button class="rail-btn tablet-only" id="btn-finger-draw">☝️</button>
   </nav>
 
   <!-- キャンバスエリア（上と左に定規） -->
@@ -565,10 +253,337 @@
         </div>
       </div>
     </div>
+
+    <!-- 色の履歴（キャンバスの左下） -->
+    <div class="color-history" id="color-history">
+      <div class="color-dot dot-xs" id="dot-4" title="4つ前の色"></div>
+      <div class="color-dot dot-small" id="dot-3" title="3つ前の色"></div>
+      <div class="color-dot dot-medium" id="dot-2" title="2つ前の色"></div>
+      <div class="color-dot dot-large" id="dot-1" title="1つ前の色"></div>
+      <div class="color-dot dot-xl" id="dot-0" title="現在の色（押すとカラーピッカーで色を選べます）"></div>
+    </div>
+
+    <!-- 拡大縮小（キャンバスの右下） -->
+    <div class="zoom-controls">
+      <button id="btn-tetris" class="tetris-start-btn" title="今のキャンバスサイズでPEPORIS">
+        <svg width="15" height="10" viewBox="0 0 32 21" aria-hidden="true" shape-rendering="crispEdges">
+          <g fill="#8e44ad">
+            <rect x="0" y="0" width="10" height="10"/><rect x="11" y="0" width="10" height="10"/>
+            <rect x="22" y="0" width="10" height="10"/><rect x="11" y="11" width="10" height="10"/>
+          </g>
+        </svg>
+      </button>
+      <button id="btn-art-preview" data-no-tip title="押している間、描いた絵だけを表示（Dキー）">👁</button>
+      <button id="btn-zoom-out">−</button>
+      <span id="zoom-label">100%</span>
+      <button id="btn-zoom-in">＋</button>
+    </div>
+
+    <!-- メニューから開く設定の小窓（グリッドサイズ・列や行の強調・画像から変換・トレース）。
+         中身は1つずつ出す。開け閉めは layout.js -->
+    <div class="sheet" id="sheet" style="display:none">
+      <div class="sheet-header">
+        <span class="sheet-title" id="sheet-title"></span>
+        <button class="sheet-close" id="btn-sheet-close" title="閉じる">✕</button>
+      </div>
+      <div class="sheet-body">
+
+        <!-- グリッドサイズ -->
+        <div class="sheet-page" data-sheet-page="grid" data-sheet-title="グリッドサイズ">
+          <div class="size-presets">
+            <button class="preset-btn" data-size="8">8</button>
+            <button class="preset-btn" data-size="16">16</button>
+            <button class="preset-btn active" data-size="32">32</button>
+            <button class="preset-btn" data-size="64">64</button>
+            <button class="preset-btn" data-size="128">128</button>
+            <button class="preset-btn" data-size="256">256</button>
+            <button class="preset-btn" data-size="512">512</button>
+            <button class="preset-btn" data-size="1024">1024</button>
+          </div>
+          <div class="size-row">
+            <label>全体</label>
+            <input type="range" id="both-slider" min="4" max="1024" value="32" step="1">
+            <input type="number" class="size-input" id="both-val" min="4" max="1024" value="32">
+          </div>
+          <div class="size-row">
+            <label>列</label>
+            <input type="range" id="cols-slider" min="4" max="1024" value="32" step="1">
+            <input type="number" class="size-input" id="cols-val" min="4" max="1024" value="32">
+          </div>
+          <div class="size-row">
+            <label>行</label>
+            <input type="range" id="rows-slider" min="4" max="1024" value="32" step="1">
+            <input type="number" class="size-input" id="rows-val" min="4" max="1024" value="32">
+          </div>
+          <button id="btn-resize" class="primary" style="width:100%; margin-top:4px;">適用</button>
+          <div class="layer-hint">「適用」で大きさが変わります。描いた絵は残ります</div>
+        </div>
+
+        <!-- 定規で強調 -->
+        <div class="sheet-page" data-sheet-page="highlight" data-sheet-title="列・行を強調">
+          <div class="line-input-row">
+            <label for="col-range-input">列</label>
+            <input type="text" id="col-range-input" class="line-range-input" inputmode="numeric" placeholder="例：60 / 60-80" autocomplete="off">
+          </div>
+          <div class="line-input-row">
+            <label for="row-range-input">行</label>
+            <input type="text" id="row-range-input" class="line-range-input" inputmode="numeric" placeholder="例：5 / 5-12" autocomplete="off">
+          </div>
+          <button id="btn-line-clear" style="width:100%; margin-top:6px;">強調を解除</button>
+          <div class="layer-hint">左上が (1,1) です。定規をクリック・ドラッグしても選べます</div>
+        </div>
+
+        <!-- 画像から変換 -->
+        <div class="sheet-page" data-sheet-page="convert" data-sheet-title="画像から変換">
+          <div id="drop-zone">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2M12 4v12m-4-4l4-4 4 4"/>
+            </svg>
+            クリックまたは<br>ドロップで画像を選択
+            <input type="file" id="file-input" accept="image/*" style="display:none">
+          </div>
+          <div style="margin-top:8px;">
+            <div class="panel-label" style="margin-bottom:4px;">変換方式</div>
+            <div class="method-row">
+              <button class="method-btn active" data-method="mode">最頻色</button>
+              <button class="method-btn" data-method="avg">平均色</button>
+            </div>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:6px;">
+              <input type="checkbox" id="convert-use-palette" style="accent-color:var(--accent)">
+              指定した色だけで変換する
+            </label>
+
+            <!-- 色数（パレット未使用時） -->
+            <div id="convert-count-group">
+              <div class="panel-label" style="margin-bottom:4px;">色数</div>
+              <div class="color-count-grid">
+                <button class="cc-btn" data-colors="8"><span class="cc-num">8色</span><span class="cc-label">超レトロ</span></button>
+                <button class="cc-btn" data-colors="16"><span class="cc-num">16色</span><span class="cc-label">レトロ</span></button>
+                <button class="cc-btn active" data-colors="32"><span class="cc-num">32色</span><span class="cc-label">標準</span></button>
+                <button class="cc-btn" data-colors="64"><span class="cc-num">64色</span><span class="cc-label">高品質</span></button>
+                <button class="cc-btn" data-colors="128"><span class="cc-num">128色</span><span class="cc-label">超高品質</span></button>
+              </div>
+            </div>
+
+            <!-- 変換用パレット（パレット使用時） -->
+            <div id="convert-palette-group" style="display:none;">
+              <div class="panel-label" style="margin-bottom:4px;">変換に使う色</div>
+              <div class="palette-grid" id="convert-palette"></div>
+              <div class="custom-palette-actions">
+                <button id="btn-cp-delete-mode">削除</button>
+                <button id="btn-cp-delete-all" class="danger">全削除</button>
+              </div>
+              <div class="layer-hint" id="convert-palette-hint">＋から色を追加してください</div>
+            </div>
+
+            <!-- 仕上げ：背景を消す・輪郭線（script.js の finishConvertedArt） -->
+            <label class="convert-check" title="背景が1色の画像で、背景を透明にします（透明な画像はそのまま）">
+              <input type="checkbox" id="convert-remove-bg" style="accent-color:var(--accent)">
+              背景を消す（背景が1色の画像）
+            </label>
+            <label class="convert-check" title="縮めると消えてしまう線を、元の画像から調べて描き足します">
+              <input type="checkbox" id="convert-outline" style="accent-color:var(--accent)">
+              輪郭線を付ける
+            </label>
+            <div id="convert-outline-options" class="convert-outline-options" style="display:none;">
+              <div class="panel-label" style="margin-bottom:4px;">線の色</div>
+              <div class="outline-color-row">
+                <button class="outline-opt active" data-outline-color="auto" title="隣の色を暗くした色で、なじむ線にします">隣の色を暗く</button>
+                <button class="outline-opt" data-outline-color="fixed" title="右の色1色で線を引きます">1色</button>
+                <input type="color" id="convert-outline-hex" value="#1e1e2a" title="線の色">
+              </div>
+              <div class="panel-label" style="margin:6px 0 4px;">内側の線</div>
+              <div class="outline-inner-row">
+                <button class="outline-opt" data-outline-inner="none">なし</button>
+                <button class="outline-opt" data-outline-inner="low">少なめ</button>
+                <button class="outline-opt active" data-outline-inner="mid">普通</button>
+                <button class="outline-opt" data-outline-inner="high">多め</button>
+              </div>
+              <div class="layer-hint">外側の線は、背景が透明か1色の画像で付きます</div>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:8px;">
+              <input type="checkbox" id="convert-resize-canvas" checked style="accent-color:var(--accent)">
+              画像サイズに合わせてキャンバスサイズを変更
+            </label>
+            <button id="btn-convert" class="primary" style="width:100%; margin-top:8px;" disabled>変換する</button>
+          </div>
+        </div>
+
+        <!-- トレース -->
+        <div class="sheet-page" data-sheet-page="trace" data-sheet-title="トレース（下絵）">
+          <div id="trace-drop-zone">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2M12 4v12m-4-4l4-4 4 4"/>
+            </svg>
+            クリックまたは<br>ドロップで参考画像を選択
+            <input type="file" id="trace-file-input" accept="image/*" style="display:none">
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-top:8px;">
+            <input type="checkbox" id="trace-resize-canvas" style="accent-color:var(--accent)">
+            画像サイズに合わせてキャンバスサイズを変更
+          </label>
+          <div class="brush-size-row" style="margin-top:8px;">
+            <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">不透明度</span>
+            <input type="range" id="trace-opacity" min="0" max="100" value="50" step="1">
+            <span class="brush-size-val" id="trace-opacity-val">50</span>
+          </div>
+          <div class="panel-label" style="margin:8px 0 4px;">重ね順</div>
+          <div class="tool-grid">
+            <button class="trace-pos-btn active" data-trace-pos="below">⬇ レイヤーの下</button>
+            <button class="trace-pos-btn" data-trace-pos="above">⬆ レイヤーの上</button>
+          </div>
+          <button id="btn-trace-remove" class="danger" style="width:100%; margin-top:8px; display:none;">トレース画像を削除</button>
+          <div class="layer-hint">キャンバスの下描き用の参考表示です。保存には含まれません</div>
+        </div>
+
+      </div>
+    </div>
   </div>
 
-  <!-- タブレット用の色パネル（タブレットのときだけ表示。中身は tablet.js がパネルから移す） -->
-  <aside class="color-dock" id="color-dock" aria-label="色"></aside>
+  <!-- 右のパネル：色とレイヤー（ボーンを使っている間は骨の一覧も出る）。
+       見出しを押すと、その欄を折りたためる（layout.js） -->
+  <aside class="dock" id="color-dock" aria-label="色とレイヤー">
+
+    <!-- ボーン（ボーンツールのときだけ表示。動きは bones.js） -->
+    <div class="panel-section" id="bone-section" style="display:none">
+      <div class="panel-label">ボーン</div>
+      <div class="layer-hint" id="bone-hint" style="margin-top:0;"></div>
+      <div class="bone-list" id="bone-list"></div>
+      <div class="tool-grid" id="bone-build-actions" style="margin-top:6px;">
+        <button id="btn-bone-auto" title="レイヤーごとに、絵のまん中にいちばん近い骨を割り当てます">自動で割り当て</button>
+        <button id="btn-bone-delete" class="danger" title="選んでいる骨を削除します（先につながった骨は残ります）">骨を削除</button>
+      </div>
+      <div id="bone-pose-box" style="display:none;">
+        <div class="tool-grid" style="margin-top:6px;">
+          <button id="btn-pose-reset" title="骨を描いたときの形に戻します">形を戻す</button>
+          <button id="btn-pose-save" class="primary" title="今のポーズを覚えます">ポーズを覚える</button>
+        </div>
+        <div class="bone-pose-list" id="bone-pose-list"></div>
+        <div class="panel-label" style="margin-top:10px;">コマを作る</div>
+        <div class="bone-gen-row">
+          <select id="bone-gen-from" aria-label="始めのポーズ"></select>
+          <span>→</span>
+          <select id="bone-gen-to" aria-label="終わりのポーズ"></select>
+        </div>
+        <div class="bone-gen-row">
+          <label for="bone-gen-count">間のコマ</label>
+          <input type="number" id="bone-gen-count" min="0" max="30" value="3">
+        </div>
+        <label class="detect-line-label"><input type="checkbox" id="bone-gen-back" style="accent-color:var(--accent)"> 往復させる（戻りのコマも作る）</label>
+        <label class="detect-line-label"><input type="checkbox" id="bone-gen-ease" checked style="accent-color:var(--accent)"> なめらか（ゆっくり始まって止まる）</label>
+        <button id="btn-bone-generate" class="primary" style="width:100%; margin-top:6px;">コマを作る</button>
+      </div>
+    </div>
+
+    <!-- カラー -->
+    <!-- 右上のボタンで中身（.popout-body）を画面上の小窓に切り出せる（script.js の「パレットの切り出し」） -->
+    <div class="panel-section" data-popout="color" data-popout-title="カラー" data-fold="color">
+      <div class="panel-label panel-label-row"><span class="fold-toggle">カラー</span><button class="popout-btn" title="パネルから切り出して、画面の好きな場所に置く"></button></div>
+      <div class="popout-placeholder">画面に切り出しています</div>
+      <div class="popout-body">
+      <div class="palette-grid" id="palette"></div>
+      <button id="btn-open-color-wheel" class="color-wheel-open" title="輪っか状のカラーピッカーで、描く色を自由に選ぶ">🎨 色を選ぶ</button>
+      </div>
+    </div>
+
+    <!-- カスタムカラーパレット -->
+    <div class="panel-section" data-popout="custom" data-popout-title="カスタムカラー" data-fold="custom">
+      <div class="panel-label panel-label-row"><span class="fold-toggle">カスタムカラー</span><button class="popout-btn" title="パネルから切り出して、画面の好きな場所に置く"></button></div>
+      <div class="popout-placeholder">画面に切り出しています</div>
+      <div class="popout-body">
+      <div class="palette-grid" id="custom-palette"></div>
+      <div class="custom-palette-actions">
+        <button id="btn-delete-mode">削除</button>
+        <button id="btn-delete-all" class="danger">全削除</button>
+      </div>
+      <div class="custom-palette-actions">
+        <button id="btn-palette-export" title="カスタムカラーをファイルに書き出す（.hex / .gpl）">書き出し</button>
+        <button id="btn-palette-import" title="パレットファイルを読み込む（.hex / .gpl / .pal / .txt / .png）">読み込み</button>
+      </div>
+      <input type="file" id="palette-file-input" accept=".hex,.gpl,.pal,.txt,.png,.gif,.bmp" style="display:none">
+      <div class="layer-hint" id="custom-palette-hint" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- レイヤー -->
+    <div class="panel-section dock-layers" id="panel-tab-layers" data-fold="layers">
+      <div class="panel-label panel-label-row"><span class="fold-toggle">レイヤー</span></div>
+      <div class="fold-body">
+      <div class="layer-opacity-row">
+        <label for="layer-opacity">不透明度</label>
+        <input type="range" id="layer-opacity" min="0" max="100" value="100" step="1">
+        <span class="layer-opacity-val" id="layer-opacity-val">100</span>
+      </div>
+      <div class="layer-list" id="layer-list"></div>
+      <div class="layer-actions">
+        <button id="btn-layer-add" title="レイヤーを追加">＋ 追加</button>
+        <button id="btn-layer-up" title="レイヤーを上へ移動">↑</button>
+        <button id="btn-layer-down" title="レイヤーを下へ移動">↓</button>
+        <button id="btn-layer-delete" class="danger" title="レイヤーを削除">🗑</button>
+      </div>
+      <div class="layer-actions" style="margin-top:5px;">
+        <button id="btn-layer-dup" title="レイヤーを複製">⧉ 複製</button>
+        <button id="btn-layer-merge" title="下のレイヤーと結合">⬇ 下と結合</button>
+        <button id="btn-layer-lock" title="レイヤーをロック">🔒</button>
+      </div>
+      <div class="layer-actions" style="margin-top:5px;">
+        <button id="btn-layer-flip-h" title="レイヤーを左右反転">⬌ 左右反転</button>
+        <button id="btn-layer-flip-v" title="レイヤーを上下反転">⬍ 上下反転</button>
+      </div>
+      <div class="layer-hint">名前はダブルクリック（ダブルタップ）で変更できます</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- スマホで右のパネルを開いている間、キャンバス側を押したら閉じるための膜 -->
+  <div class="dock-backdrop" id="dock-backdrop"></div>
+</div>
+
+<!-- パレット書き出し形式の選択モーダル -->
+<div class="confirm-modal" id="palette-export-modal" style="display:none">
+  <div class="confirm-card">
+    <p>書き出す形式を選んでください</p>
+    <div class="palette-export-options">
+      <button id="btn-export-hex" class="primary">.hex<span>Lospec など</span></button>
+      <button id="btn-export-gpl" class="primary">.gpl<span>GIMP・Aseprite など</span></button>
+    </div>
+    <div class="confirm-actions">
+      <button id="btn-export-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 色選択モーダル -->
+<div class="confirm-modal modal-side" id="color-pick-modal" style="display:none">
+  <div class="confirm-card color-pick-card">
+    <p>色を選択してください</p>
+    <!-- 輪っか状のカラーピッカー（colorwheel.js が描く） -->
+    <div class="color-wheel" id="color-wheel"></div>
+    <div class="color-pick-row">
+      <div class="color-compare" title="左：元の色　右：新しい色">
+        <span id="color-old"></span><span id="color-new"></span>
+      </div>
+      <input type="text" id="color-hex" class="color-hex-input" maxlength="7" spellcheck="false" autocomplete="off" aria-label="色のコード（#RRGGBB）">
+      <button id="btn-color-eyedropper" title="画面から色を拾う" style="display:none">💉</button>
+    </div>
+    <input type="hidden" id="custom-color-picker" value="#ff0000">
+    <div class="confirm-actions">
+      <button id="btn-color-ok" class="primary">OK</button>
+      <button id="btn-color-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 全削除確認モーダル -->
+<div class="confirm-modal" id="confirm-delete-all" style="display:none">
+  <div class="confirm-card">
+    <p>カスタムカラーをすべて削除しますか？</p>
+    <div class="confirm-actions">
+      <button id="btn-confirm-ok" class="primary">OK</button>
+      <button id="btn-confirm-no">いいえ</button>
+    </div>
+  </div>
 </div>
 
 <!-- アニメーションのコマの一覧（ヘッダーの 🎞 で出す・しまう。動きは anim.js） -->
@@ -610,14 +625,7 @@
   </div>
 </div>
 
-<!-- 参考画像（画面右上固定・図形ボタンの左） -->
-<button class="ref-toggle" id="btn-ref-toggle" title="参考画像を表示">
-  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="2.5" y="4" width="19" height="16" rx="2" fill="#fff" stroke="#5596ff" stroke-width="2"/>
-    <circle cx="8.5" cy="9.5" r="2" fill="#ffc21a"/>
-    <path d="M4 18.5l5-5.5 3 3 4-5 4.5 7.5z" fill="#3cb96b"/>
-  </svg>
-</button>
+<!-- 参考画像（「画像」メニューから出す） -->
 <input type="file" id="ref-file-input" accept="image/*" style="display:none">
 
 <!-- 参考画像ウィンドウ（ドラッグで移動・右下の角で拡大縮小） -->
@@ -633,47 +641,6 @@
     <div class="ref-empty" id="ref-empty">クリックまたはドロップで<br>画像を選択</div>
   </div>
   <div class="ref-resize" id="ref-resize" title="ドラッグで大きさを変更"></div>
-</div>
-
-<!-- テンプレート図形メニュー（画面右上固定） -->
-<div class="shape-menu" id="shape-menu">
-  <button class="shape-menu-btn" id="btn-shape-menu" title="テンプレート図形"><img src="images/shape-icon.png" alt="テンプレート図形"></button>
-  <div class="shape-menu-dropdown" id="shape-menu-dropdown" style="display:none;">
-    <button class="shape-opt" data-shape="line" data-fill="1">📏 直線</button>
-    <button class="shape-opt" data-shape="circle" data-fill="1">⚫ 円</button>
-    <button class="shape-opt" data-shape="circle" data-fill="0">⚪ 円（枠のみ）</button>
-    <button class="shape-opt" data-shape="rect" data-fill="1">⬛ 四角</button>
-    <button class="shape-opt" data-shape="rect" data-fill="0">⬜ 四角（枠のみ）</button>
-    <button class="shape-opt" data-shape="diamond" data-fill="1">🔶 ひし形</button>
-    <button class="shape-opt" data-shape="diamond" data-fill="0">🔷 ひし形（枠のみ）</button>
-    <button class="shape-opt" data-shape="heart" data-fill="1">❤️ ハート</button>
-    <button class="shape-opt" data-shape="heart" data-fill="0">🤍 ハート（枠のみ）</button>
-  </div>
-</div>
-
-<!-- 色履歴（描画エリア左下固定） -->
-<div class="color-history" id="color-history">
-  <div class="color-dot dot-xs" id="dot-4" title="4つ前の色"></div>
-  <div class="color-dot dot-small" id="dot-3" title="3つ前の色"></div>
-  <div class="color-dot dot-medium" id="dot-2" title="2つ前の色"></div>
-  <div class="color-dot dot-large" id="dot-1" title="1つ前の色"></div>
-  <div class="color-dot dot-xl" id="dot-0" title="現在の色（押すとカラーピッカーで色を選べます）"></div>
-</div>
-
-<!-- ズーム（画面右下固定） -->
-<div class="zoom-controls">
-  <button id="btn-tetris" class="tetris-start-btn" title="今のキャンバスサイズでPEPORIS">
-    <svg width="15" height="10" viewBox="0 0 32 21" aria-hidden="true" shape-rendering="crispEdges">
-      <g fill="#8e44ad">
-        <rect x="0" y="0" width="10" height="10"/><rect x="11" y="0" width="10" height="10"/>
-        <rect x="22" y="0" width="10" height="10"/><rect x="11" y="11" width="10" height="10"/>
-      </g>
-    </svg>
-  </button>
-  <button id="btn-art-preview" data-no-tip title="押している間、描いた絵だけを表示（Dキー）">👁</button>
-  <button id="btn-zoom-out">−</button>
-  <span id="zoom-label">100%</span>
-  <button id="btn-zoom-in">＋</button>
 </div>
 
 <!-- ステータスバー -->
@@ -905,7 +872,7 @@
 <script src="anim.js"></script>
 <script src="bones.js"></script>
 <script src="ai-bridge.js"></script>
-<script src="tablet.js"></script>
+<script src="layout.js"></script>
 <script src="tetris.js"></script>
 <script type="module" src="cloud.js"></script>
 </body>

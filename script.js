@@ -1662,59 +1662,6 @@ if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
   });
 }
 
-// ── パネルタブ（描画／レイヤー） ──────────────────────
-const tabDrawBtn = document.getElementById('tab-draw');
-const tabLayersBtn = document.getElementById('tab-layers');
-const tabDrawPage = document.getElementById('panel-tab-draw');
-const tabLayersPage = document.getElementById('panel-tab-layers');
-
-function switchPanelTab(tab) {
-  // ドック中はレイヤーページが左パネルの外（ドック）にあるため、
-  // タブ切替の対象からは外して常に描画タブを表示する。
-  const showLayers = tab === 'layers' && !layersDocked;
-  tabDrawBtn.classList.toggle('active', !showLayers);
-  tabLayersBtn.classList.toggle('active', showLayers);
-  tabDrawPage.style.display = showLayers ? 'none' : '';
-  if (!layersDocked) tabLayersPage.style.display = showLayers ? '' : 'none';
-  if (showLayers) updateLayerThumbnails();
-}
-
-tabDrawBtn.addEventListener('click', () => switchPanelTab('draw'));
-tabLayersBtn.addEventListener('click', () => switchPanelTab('layers'));
-
-// ── レイヤードック（左パネルの右に並べて表示） ─────────
-// レイヤーページのDOMノード自体をドックへ移動する。ノードを移動しても
-// 登録済みのイベントリスナーは保持されるため、レイヤー操作はそのまま動く。
-const layerDock = document.getElementById('layer-dock');
-const btnDockLayers = document.getElementById('btn-dock-layers');
-const btnUndockLayers = document.getElementById('btn-undock-layers');
-let layersDocked = false;
-
-function setLayersDocked(docked) {
-  const anchor = canvasScreenPos(); // ドックの出し入れでキャンバスをずらさない
-  layersDocked = docked;
-  if (docked) {
-    layerDock.appendChild(tabLayersPage);
-    tabLayersPage.style.display = '';
-    layerDock.style.display = '';
-    tabLayersBtn.style.display = 'none';
-    btnDockLayers.style.display = 'none';
-  } else {
-    panel.appendChild(tabLayersPage); // 元の位置（描画ページの後ろ）に戻す
-    layerDock.style.display = 'none';
-    tabLayersBtn.style.display = '';
-    btnDockLayers.style.display = '';
-  }
-  switchPanelTab('draw');
-  updateLayerPanel();
-  syncTogglePosition();
-  updateScrollPadding();
-  restoreCanvasScreenPos(anchor);
-}
-
-btnDockLayers.addEventListener('click', () => setLayersDocked(true));
-btnUndockLayers.addEventListener('click', () => setLayersDocked(false));
-
 // ── レイヤーパネル ────────────────────────────────────
 const layerListEl = document.getElementById('layer-list');
 const btnLayerAdd = document.getElementById('btn-layer-add');
@@ -2053,15 +2000,10 @@ function flipLayer(direction) {
 document.getElementById('btn-layer-flip-h').addEventListener('click', () => flipLayer('h'));
 document.getElementById('btn-layer-flip-v').addEventListener('click', () => flipLayer('v'));
 
-// ── 色履歴の位置更新 ──────────────────────────────────
+// ── 色履歴 ────────────────────────────────────────────
+// 位置はCSSで決まる（キャンバスの枠の左下）。anim.js から呼ばれるので、関数だけ残してある
 const colorHistoryEl = document.getElementById('color-history');
-function updateColorHistoryPos(panelEdge) {
-  const rect = canvasArea.getBoundingClientRect();
-  const left = panelEdge != null ? panelEdge : rect.left;
-  colorHistoryEl.style.left = (left + 10) + 'px';
-  colorHistoryEl.style.bottom = (window.innerHeight - rect.bottom + 30) + 'px';
-}
-window.addEventListener('resize', updateColorHistoryPos);
+function updateColorHistoryPos() {}
 
 // ── カラーパレット ────────────────────────────────────
 function buildPalette() {
@@ -2282,7 +2224,7 @@ function cssColorToHex(css) {
 
 // 画面上の点にある部品。スマホでパネルを開いているときの暗い幕は無視して、その下を見る
 function pageElementAt(x, y) {
-  return document.elementsFromPoint(x, y).find(e => !e.closest('.panel-backdrop, .page-pick-bar, .pick-loupe'));
+  return document.elementsFromPoint(x, y).find(e => !e.closest('.dock-backdrop, .page-pick-bar, .pick-loupe'));
 }
 
 // 画面上の点の色。'#rrggbb'、透明な所ならnull、拾えない所ならundefined。
@@ -3065,6 +3007,7 @@ const btnPaste = document.getElementById('btn-paste');
 function updateClipboardButtons() {
   btnCut.disabled = btnCopy.disabled = !selectionMask;
   btnPaste.disabled = !clipboard;
+  if (window.updateOptbar) window.updateOptbar(); // 選択の欄を出すかどうかが変わる
 }
 
 function copySelection() {
@@ -3191,9 +3134,10 @@ detectLineCheck.addEventListener('change', () => {
   detectLine = detectLineCheck.checked;
 });
 
+// 道具の設定（描画サイズ・描画スタイル・移動の対象など）のうち、今の道具に合うものだけを出す。
+// 出し分けは layout.js の updateOptbar が行う（読み込み前に呼ばれたら何もしない）
 function updateDrawStyleVisibility() {
-  drawStyleSection.style.display = currentTool === 'pen' || currentTool === 'erase' ? '' : 'none';
-  document.getElementById('move-target-section').style.display = currentTool === 'move' ? '' : 'none';
+  if (window.updateOptbar) window.updateOptbar();
 }
 
 // ── 移動の対象（このレイヤー／全レイヤー） ──
@@ -3270,6 +3214,7 @@ function updateHeaderStatus() {
   const tool = currentToolLabel();
   statusTool.textContent = tool;
   statusTool.title = `今のツール: ${tool}`;
+  if (window.updateOptbar) window.updateOptbar(); // 道具の設定の欄も今の道具に合わせる
 }
 
 // ヘッダーのサイト名は、場所が足りなくなると
@@ -4599,7 +4544,9 @@ function centerCanvas() {
   canvasArea.scrollTop  = padY + ch / 2 - canvasArea.clientHeight / 2;
 }
 
-// タブレットでは、キャンバスが小さいと描きにくいので、画面いっぱい近くまで拡大して表示する
+// タブレットとスマホでは、キャンバスが小さかったり画面からはみ出したりすると描きにくいので、
+// 開いたときに画面いっぱい近くの大きさに合わせて表示する
+function fitsCanvasOnOpen() { return tabletUI || window.innerWidth <= 640; }
 function fitCanvasToView() {
   const {w, h} = canvasSize();
   setZoom(Math.min(canvasArea.clientWidth * 0.9 / w, canvasArea.clientHeight * 0.9 / h));
@@ -4610,7 +4557,7 @@ function startEditor() {
   overlay.style.display = 'none';
   initCells(cols, rows, false);
   resizeCanvases();
-  if (tabletUI) fitCanvasToView();
+  if (fitsCanvasOnOpen()) fitCanvasToView();
   centerCanvas();
 }
 
@@ -4634,7 +4581,7 @@ function resetToNewCanvas() {
   resizeCanvases();
   syncSlidersToGrid();
   updatePresetHighlight();
-  if (tabletUI) fitCanvasToView();
+  if (fitsCanvasOnOpen()) fitCanvasToView();
   centerCanvas();
   if (window.clearCurrentArtwork) window.clearCurrentArtwork();
 }
@@ -4653,43 +4600,9 @@ document.getElementById('btn-new-canvas-cancel').addEventListener('click', () =>
   newCanvasConfirmModal.style.display = 'none';
 });
 
-// ── パネルリサイズ・開閉 ──────────────────────────────
-const panel = document.getElementById('panel');
-const panelResize = document.getElementById('panel-resize');
-const panelToggle = document.getElementById('panel-toggle');
-const panelBackdrop = document.getElementById('panel-backdrop');
-const MIN_PANEL_W = 260;
-let panelCollapsed = false;
-let savedPanelWidth = panel.offsetWidth || 260;
-
-function isMobile() { return window.innerWidth <= 640; }
-// パネルを画面の左から引き出す形で使うか（スマホとタブレット）
-function isDrawerLayout() { return isMobile() || tabletUI; }
-
-function syncTogglePosition() {
-  panelToggle.textContent = panelCollapsed ? '▶' : '◀';
-  if (isDrawerLayout()) {
-    panelToggle.style.left = '0px';
-    panelBackdrop.classList.toggle('visible', !panelCollapsed);
-    updateColorHistoryPos();
-  } else {
-    // パネルはトランジション中のため、実測値ではなく指定済みの目標幅を使う
-    const w = panelCollapsed ? 0 : (parseFloat(panel.style.width) || panel.getBoundingClientRect().width);
-    const handleW = panelCollapsed ? 0 : 4;
-    // レイヤードックを開いている場合は、パネル・リサイズハンドル・ドックの右端に付ける。
-    // 開いていない場合はパネルの枠線にぴったり付ける（リサイズハンドルは透明なので、
-    // その幅を足すとボタンがパネルから離れて見える。ハンドルの上に重なってもボタンが上に来る）
-    const dockW = layersDocked ? layerDock.getBoundingClientRect().width : 0;
-    const edge = layersDocked ? w + handleW + dockW : w;
-    panelToggle.style.left = edge + 'px';
-    panelBackdrop.classList.remove('visible');
-    updateColorHistoryPos(edge);
-  }
-}
-
-// パネルの開閉や幅変更でキャンバスエリアの左端が動くと、スクロール位置は
-// そのままなのでキャンバスが画面上で左右にずれて見える。変更前のキャンバスの
-// 画面座標を覚えておき、スクロール位置を補正して同じ場所に留める。
+// ── キャンバスの位置を保つ ────────────────────────────
+// 右のパネルの出し入れなどでキャンバスエリアの大きさが変わっても、
+// キャンバスが画面上で動いて見えないよう、スクロール位置を補正する（layout.js から使う）
 function canvasScreenPos() {
   const r = wrap.getBoundingClientRect();
   return { x: r.left, y: r.top };
@@ -4701,104 +4614,9 @@ function restoreCanvasScreenPos(target) {
   canvasArea.scrollTop  += now.y - target.y;
 }
 
-// パネル幅はCSSトランジション（0.22秒）で徐々に変わるため、
-// アニメーションが終わるまで毎フレーム補正し続ける。
-function keepCanvasAnchored(duration = 300) {
-  const target = canvasScreenPos();
-  const settle = () => {
-    updateScrollPadding(); // エリア幅が変わったので余白を取り直す
-    restoreCanvasScreenPos(target);
-  };
-  const start = performance.now();
-  const step = () => {
-    restoreCanvasScreenPos(target);
-    if (performance.now() - start < duration) requestAnimationFrame(step);
-    else settle();
-  };
-  requestAnimationFrame(step);
-  // 非表示タブなどでrequestAnimationFrameが動かない場合の保険
-  setTimeout(settle, duration);
-}
-
-function togglePanel() {
-  const anchor = canvasScreenPos();
-  if (panelCollapsed) {
-    panel.classList.remove('collapsed');
-    if (!isDrawerLayout()) panel.style.width = savedPanelWidth + 'px';
-    panelCollapsed = false;
-  } else {
-    if (!isDrawerLayout()) savedPanelWidth = panel.offsetWidth;
-    panel.classList.add('collapsed');
-    panelCollapsed = true;
-  }
-  syncTogglePosition();
-  restoreCanvasScreenPos(anchor); // 1フレーム目のずれを先に打ち消す
-  keepCanvasAnchored();
-}
-
-panelToggle.addEventListener('click', togglePanel);
-panelBackdrop.addEventListener('click', () => {
-  if (!panelCollapsed) togglePanel();
-});
-
-// スマホ・タブレットでは初期状態で閉じる（開いた状態から閉じていく動きを見せないよう、一瞬で閉じる）
-if (isDrawerLayout()) {
-  panel.classList.add('no-transition', 'collapsed');
-  panelCollapsed = true;
-  requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.remove('no-transition')));
-}
-
-// 画面リサイズ時にモード切替
-window.addEventListener('resize', () => {
-  // 並べて表示する幅がなくなったらタブ表示に戻す（CSSの900px境界と揃える）
-  if (layersDocked && window.innerWidth <= 900) setLayersDocked(false);
-  syncTogglePosition();
-});
-
-// ドラッグリサイズ（デスクトップのみ）
-let isResizing = false;
-let resizeAnchor = null; // ドラッグ中にキャンバスを固定しておく画面座標
-panelResize.addEventListener('mousedown', e => {
-  if (isDrawerLayout()) return;
-  e.preventDefault();
-  isResizing = true;
-  resizeAnchor = canvasScreenPos();
-  panel.classList.add('no-transition');
-  panelResize.classList.add('dragging');
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-});
-
-document.addEventListener('mousemove', e => {
-  if (!isResizing) return;
-  const appRect = document.querySelector('.app').getBoundingClientRect();
-  let newWidth = e.clientX - appRect.left;
-  newWidth = Math.max(MIN_PANEL_W, Math.min(newWidth, window.innerWidth * 0.5));
-  panel.style.width = newWidth + 'px';
-  syncTogglePosition();
-  restoreCanvasScreenPos(resizeAnchor); // 幅を変えてもキャンバスは動かさない
-});
-
-document.addEventListener('mouseup', () => {
-  if (!isResizing) return;
-  isResizing = false;
-  panel.classList.remove('no-transition');
-  panelResize.classList.remove('dragging');
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  savedPanelWidth = panel.offsetWidth;
-  updateScrollPadding();
-  restoreCanvasScreenPos(resizeAnchor);
-  resizeAnchor = null;
-});
-
-// ── キャンバス表示切替 ────────────────────────────────
-let canvasVisible = true;
-document.getElementById('btn-toggle-canvas').addEventListener('click', () => {
-  canvasVisible = !canvasVisible;
-  cBg.style.visibility = canvasVisible ? 'visible' : 'hidden';
-  const btn = document.getElementById('btn-toggle-canvas');
-  btn.classList.toggle('primary', !canvasVisible);
+// ── 市松模様の表示切替（「表示」メニュー） ────────────
+document.getElementById('show-checker').addEventListener('change', e => {
+  cBg.style.visibility = e.target.checked ? 'visible' : 'hidden';
 });
 
 // ── 背景色切替 ────────────────────────────────────────
@@ -4932,7 +4750,7 @@ function loadProjectData(p) {
   resizeCanvases();
   syncSlidersToGrid();
   updateLayerPanel();
-  if (tabletUI) fitCanvasToView();
+  if (fitsCanvasOnOpen()) fitCanvasToView();
   centerCanvas();
 }
 
@@ -5572,10 +5390,11 @@ function setPalettePoppedOut(key, out) {
   const fp = floatPalettes[key];
   if (out) {
     if (!floatPaletteState[key] || floatPaletteState[key].w == null) {
-      // 初めて切り出すときは、パネルのすぐ右、パネルにあったのと同じ高さに置く
+      // 初めて切り出すときは、右のパネルのすぐ左、パネルにあったのと同じ高さに置く
       const r = fp.section.getBoundingClientRect();
-      const panelRight = document.getElementById('panel').getBoundingClientRect().right;
-      floatPaletteState[key] = { x: Math.max(panelRight, 0) + 12, y: r.top, w: Math.max(r.width - 8, FLOAT_PALETTE_MIN_W) };
+      const dockLeft = document.getElementById('color-dock').getBoundingClientRect().left;
+      const w = Math.max(r.width - 8, FLOAT_PALETTE_MIN_W);
+      floatPaletteState[key] = { x: Math.max(dockLeft - w - 12, 0), y: r.top, w };
     }
     fp.winBody.appendChild(fp.body);
     fp.win.style.display = 'flex';
@@ -5767,8 +5586,6 @@ setColor('#3a3a38');
 setupRestoreButton();
 initCells(cols, rows, false);
 resizeCanvases();
-syncTogglePosition();
-updateColorHistoryPos();
 // 初期表示でもキャンバスを中央に配置する。読み込み直後はレイアウトが
 // 確定しきっていないことがあるため、タスクを分けて余白を再計算してから
 // 中央へスクロールする。requestAnimationFrameは非表示タブで発火しないため

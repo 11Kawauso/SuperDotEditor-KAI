@@ -21,7 +21,7 @@
   const btn = document.createElement('button');
   btn.id = 'btn-ai-bridge';
   btn.className = 'ai-bridge-btn';
-  document.getElementById('file-menu').before(btn);
+  document.getElementById('btn-toggle-timeline').before(btn); // ヘッダーの右側（元に戻すなどの並び）に置く
 
   let enabled = false;
   let ws = null;
