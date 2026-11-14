@@ -1,13 +1,10 @@
 // ── 状態 ──────────────────────────────────────────────
+// 基本のパレット（24色）。パソコンでは12列×2段、タブレット・スマホでは8列×3段で並ぶ
 const PALETTE_COLORS = [
-  '#ffffff','#d0d0d0','#888888','#444444','#1a1a18','#000000',
-  '#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db',
-  '#9b59b6','#e91e8c','#ff7675','#fdcb6e','#55efc4','#74b9ff',
-  '#a29bfe','#fd79a8','#dfe6e9','#b2bec3','#636e72','#2d3436',
-  '#c0392b','#d35400','#f39c12','#27ae60','#16a085','#2980b9',
-  '#8e44ad','#ff006e','#ff8c00','#00b894','#0984e3','#6c5ce7',
-  '#fab1a0','#ffeaa7','#81ecec','#6366f1','#a0522d','#5d4037',
-  '#2c3e50','#34495e','#7f8c8d','#95a5a6','#bdc3c7','#ecf0f1',
+  '#ffffff','#d0d0d0','#888888','#444444','#000000','#5d4037',
+  '#a0522d','#fab1a0','#ffeaa7','#fd79a8','#e91e8c','#c0392b',
+  '#e74c3c','#e67e22','#f1c40f','#2ecc71','#27ae60','#1abc9c',
+  '#81ecec','#74b9ff','#3498db','#2980b9','#2c3e50','#9b59b6',
 ];
 
 let cols = 32, rows = 32;
@@ -3216,31 +3213,6 @@ function updateHeaderStatus() {
   statusTool.title = `今のツール: ${tool}`;
   if (window.updateOptbar) window.updateOptbar(); // 道具の設定の欄も今の道具に合わせる
 }
-
-// ヘッダーのサイト名は、場所が足りなくなると
-// 正式名「スーパードットエディター・改」→ 略称「超.田・改」→ アイコン の順に切り替える。
-// 空き具合は隣の状態表示（レイヤー名の長さなど）でも変わるため、画面幅で決め打ちせず、
-// ヘッダーの中身を縮めずに並べたときに収まるかを実際に測って決める。
-// （状態表示は今のレイヤーやツールが分かる大事な表示なので、サイト名の方を先に譲る）
-const headerEl = document.querySelector('header');
-const siteTitle = headerEl.querySelector('h1');
-function headerOverflows() {
-  headerEl.classList.add('measuring'); // 一時的に何も縮めない状態にして測る
-  const over = headerEl.scrollWidth > headerEl.clientWidth;
-  headerEl.classList.remove('measuring');
-  return over;
-}
-function fitSiteTitle() {
-  siteTitle.classList.remove('name-short', 'name-icon');
-  if (!headerOverflows()) return;
-  siteTitle.classList.add('name-short');
-  if (!headerOverflows()) return;
-  siteTitle.classList.replace('name-short', 'name-icon');
-}
-// ヘッダーの幅（画面幅）と状態表示の幅のどちらが変わっても測り直す
-const siteTitleObserver = new ResizeObserver(fitSiteTitle);
-siteTitleObserver.observe(headerEl);
-siteTitleObserver.observe(statusChip);
 
 function updateCanvasCursor() {
   cOv.style.cursor = currentTool === 'move' ? 'move' : '';

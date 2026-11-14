@@ -11,8 +11,8 @@
   --accent-hover: #555552;
   --danger: #c0392b;
   --radius: 6px;
-  --rail: 52px;  /* 左の道具バーの幅 */
-  --dock: 248px; /* 右のパネル（色とレイヤー）の幅 */
+  --rail: 42px;  /* 左の道具バーの幅 */
+  --dock: 228px; /* 右のパネル（色とレイヤー）の幅 */
 }
 
 body {
@@ -30,41 +30,18 @@ body {
   user-select: none;
 }
 
-/* ── ヘッダー ── */
+/* ── ヘッダー ──
+   メニュー・今の道具の設定・元に戻すなどを1段に並べる（細かい並びはファイルの最後の「画面の並び」） */
 header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  height: 44px;
+  gap: 6px;
+  padding: 0 8px;
+  height: 38px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-header h1 { font-size: 14px; font-weight: 500; letter-spacing: 0.02em; }
-/* タイトルはホーム画面へのリンク。見た目は見出しのまま、触れたときだけ下線を出す */
-/* サイト名は場所が足りなくなると、正式名 →「超.田・改」→ アイコン の順に切り替える
-   （どれを出すかはscript.jsのfitSiteTitleが、実際に収まるかを測って決める） */
-header h1 { white-space: nowrap; min-width: 0; }
-.home-link { color: inherit; text-decoration: none; display: flex; align-items: center; min-width: 0; }
-.home-name { overflow: hidden; text-overflow: ellipsis; }
-.home-link:hover { text-decoration: underline; }
-.home-name-short,
-.home-icon { display: none; }
-.home-icon {
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-}
-header h1.name-short .home-name-full { display: none; }
-header h1.name-short .home-name-short { display: block; }
-header h1.name-icon .home-name { display: none; }
-header h1.name-icon .home-icon { display: block; }
-/* fitSiteTitleが測る一瞬だけ、ヘッダーの中身を縮めない状態にする */
-header.measuring > *,
-header.measuring .status-chip > span { flex-shrink: 0 !important; }
-.header-sep { flex: 1; }
 
 /* 背景切替 */
 .bg-switcher {
@@ -185,10 +162,6 @@ button:disabled { opacity: 0.4; cursor: default; transform: none; }
   line-height: 1;
   color: var(--text-muted);
   background: var(--surface);
-}
-/* ヘッダーはボタンが多く、ログイン中や作品名表示中は幅に余裕がないため、広い画面でだけ出す */
-@media (max-width: 1099px) {
-  header .key-hint { display: none; }
 }
 .tool-btn.active .key-hint {
   color: #fff;
@@ -1175,14 +1148,10 @@ body.tetris-playing .timeline { visibility: hidden; }
 
 /* ── レスポンシブ ── */
 @media (max-width: 768px) {
-  header h1 { font-size: 13px; }
-  header { gap: 6px; padding: 0 10px; }
   .statusbar { gap: 10px; padding: 0 8px; }
 }
 
 @media (max-width: 640px) {
-  header { height: 40px; gap: 6px; padding: 0 8px; }
-  header h1 { font-size: 13px; }
   .hide-mobile { display: none; }
   .key-hint { display: none; } /* スマホにはキーボードが無いため */
 
@@ -1275,6 +1244,7 @@ body.tetris-playing .timeline { visibility: hidden; }
 }
 .layer-opacity-row input[type=range] {
   flex: 1;
+  min-width: 0; /* 幅の狭いパネルでも、右の数字を押し出さない */
   accent-color: var(--accent);
 }
 .layer-opacity-val {
@@ -1983,18 +1953,35 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
 
 /* ══════════════════════════════════════════════════════
    画面の並び
-   上：ヘッダー（メニュー）と、今の道具の設定の帯
+   上：ヘッダー1段（メニュー・今の道具の設定・元に戻すなど）
    中：左に道具バー・中央にキャンバス・右に色とレイヤーのパネル
    下：コマの一覧（出しているときだけ）とステータスバー
+   画面が狭いときは、今の道具の設定だけヘッダーの2段目に回る。
    縦向きのタブレットでは右のパネルを下に、スマホでは道具バーを下に置いて
    右のパネルは下から引き出す。開け閉めや出し分けは layout.js。
    ══════════════════════════════════════════════════════ */
 
-/* ── ヘッダーのメニュー ── */
-.menubar { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+/* ── ヘッダー ── */
+header > * { flex-shrink: 0; }
+header button { height: 26px; padding: 0 8px; }
+/* キーの表示はボタンの説明（マウスを乗せると出る）に任せる */
+header .key-hint { display: none; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+#btn-toggle-timeline,
+#btn-undo,
+#btn-redo,
+#btn-dock-toggle { width: 30px; padding: 0; }
+#btn-dock-toggle.active { background: var(--accent); border-color: var(--accent); }
+
+/* メニュー */
+.menubar { display: flex; align-items: center; gap: 1px; }
 .menu { position: relative; display: flex; }
 .menubar-btn {
-  padding: 5px 9px;
   border-color: transparent;
   background: transparent;
 }
@@ -2015,6 +2002,9 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   box-shadow: 0 6px 16px rgba(0,0,0,0.15);
   min-width: 220px;
 }
+/* メニューの中の項目は、ヘッダーのボタンより少し大きく（押しやすく）する */
+.menu-dropdown button { height: 28px; padding: 5px 12px; }
+.menu-dropdown .bg-btn { height: 20px; padding: 0; }
 .menu-item.danger { color: var(--danger); }
 /* 出している物（参考画像・コマの一覧）には印を付ける */
 .menu-item.active::after { content: '✓'; margin-left: auto; padding-left: 12px; }
@@ -2049,22 +2039,20 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   line-height: 1.5;
   color: var(--text-muted);
 }
-#btn-dock-toggle.active { background: var(--accent); border-color: var(--accent); }
-/* 「元に戻す」「やり直し」の文字は、広い画面でだけ出す */
-@media (max-width: 1099px) {
-  .header-text { display: none; }
-}
 
-/* ── 今の道具の設定の帯 ── */
+/* ── 今の道具の設定（メニューの右に続ける） ── */
+header > .optbar {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .optbar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  height: 40px;
-  padding: 0 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  gap: 10px;
+  height: 100%;
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
   white-space: nowrap;
   /* 入りきらないときは横にスクロールする（スクロールバーは出さない） */
   overflow-x: auto;
@@ -2077,21 +2065,22 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
 .opt-group {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-shrink: 0;
-  padding-left: 14px;
+  padding-left: 10px;
   border-left: 1px solid var(--border);
 }
-.opt-pair { display: inline-flex; gap: 5px; }
+.opt-pair { display: inline-flex; gap: 4px; }
 .opt-label { margin-right: 2px; font-size: 11px; color: var(--text-muted); }
 .optbar button {
   width: auto;
-  height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
 }
-.optbar .detect-line-label { margin-top: 0; }
-#opt-brush input[type=range] { width: 110px; accent-color: var(--accent); }
-#opt-brush .brush-size-val { min-width: 16px; }
+.optbar .detect-line-label { margin-top: 0; font-size: 11px; }
+#opt-brush input[type=range] { width: 96px; accent-color: var(--accent); }
+#opt-brush .brush-size-val { min-width: 14px; }
 .bone-mode-btn.active {
   background: var(--accent);
   color: #fff;
@@ -2104,6 +2093,25 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   text-overflow: ellipsis;
   font-size: 11px;
   color: var(--text-muted);
+}
+/* 右のパネルにレイヤーが見えている間は、レイヤー名を重ねて出さない */
+@media (min-width: 1000px) {
+  body.dock-open .status-layer { display: none; }
+}
+/* 画面が狭いときは、今の道具の設定を2段目に回す */
+@media (max-width: 999px) {
+  header { flex-wrap: wrap; height: auto; }
+  .menubar,
+  .header-actions { height: 38px; }
+  header > .optbar {
+    order: 10;
+    flex: 0 0 calc(100% + 16px);
+    height: 34px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 /* ── 中の段：道具バー・キャンバス・右のパネル ── */
@@ -2118,6 +2126,35 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   position: relative;
 }
 .canvas-stage { grid-area: stage; }
+.zoom-controls { right: 14px; bottom: 14px; }
+.color-history { left: 12px; bottom: 14px; }
+
+/* キャンバスのスクロールバーは、場所を取らない細いものを重ねて出す（動きは layout.js） */
+.canvas-area { scrollbar-width: none; }
+.canvas-area::-webkit-scrollbar { display: none; }
+.mini-scroll { position: absolute; z-index: 7; pointer-events: none; }
+.mini-scroll-x { left: 6px; right: 6px; bottom: 1px; height: 8px; }
+.mini-scroll-y { top: 6px; bottom: 6px; right: 1px; width: 8px; }
+.mini-scroll-thumb {
+  position: absolute;
+  border-radius: 4px;
+  /* キャンバスの周りの色（白・灰・黒）のどれの上でも見える色 */
+  background: rgba(128,128,128,0.55);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+  pointer-events: auto;
+  touch-action: none;
+  transition: background 0.15s;
+}
+.mini-scroll-x .mini-scroll-thumb { top: 3px; height: 4px; }
+.mini-scroll-y .mini-scroll-thumb { left: 3px; width: 4px; }
+.mini-scroll-x .mini-scroll-thumb:hover,
+.mini-scroll-x .mini-scroll-thumb.dragging { top: 1px; height: 6px; }
+.mini-scroll-y .mini-scroll-thumb:hover,
+.mini-scroll-y .mini-scroll-thumb.dragging { left: 1px; width: 6px; }
+.mini-scroll-thumb:hover,
+.mini-scroll-thumb.dragging { background: rgba(110,110,110,0.9); }
+body.tetris-playing .mini-scroll,
+body.art-preview .mini-scroll { display: none; }
 
 /* 左の道具バー（アイコンだけのボタンを縦に並べる） */
 .tool-rail {
@@ -2125,21 +2162,21 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 0;
+  gap: 2px;
+  padding: 6px 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
   position: relative;
   z-index: 35; /* 横に開く小窓を、キャンバスや設定の小窓より上に出す */
 }
 .tool-rail .rail-btn {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   min-width: 0;
   padding: 0;
   justify-content: center;
-  font-size: 18px;
-  border-radius: 10px;
+  font-size: 16px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
@@ -2151,12 +2188,13 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   border-color: var(--accent);
   color: #fff;
 }
+.tool-rail .shape-menu-btn img { width: 19px; height: 19px; }
 /* 選択している間は、選択が終わったあとに戻る道具を控えめに示す */
 .tool-rail.selecting .tool-btn.active {
   background: transparent;
   border-color: var(--border-strong);
 }
-.rail-sep { width: 28px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
+.rail-sep { width: 22px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
 .rail-spacer { flex: 1; }
 .rail-item { position: relative; display: flex; }
 .tablet-only { display: none; }
@@ -2167,7 +2205,7 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   display: none;
   position: absolute;
   top: 0;
-  left: calc(100% + 10px);
+  left: calc(100% + 8px);
   z-index: 30;
   flex-direction: column;
   gap: 4px;
@@ -2199,13 +2237,20 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
   border-left: 1px solid var(--border);
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none; /* スクロールバーは出さない（ホイールや指で動かす） */
   touch-action: pan-y;
 }
+.dock::-webkit-scrollbar { display: none; }
 body.dock-open .dock { display: flex; }
 .dock-backdrop { display: none; }
-.dock .swatch,
-.dock .swatch-empty { border-radius: 4px; }
+.dock .panel-section { padding: 10px 12px; }
+.dock .panel-label { margin-bottom: 6px; }
+/* 色は小さく、12列で並べる */
+.dock .palette-grid { grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.dock .swatch-empty { font-size: 10px; border-width: 1px; }
+.dock button { height: 26px; }
+.dock .custom-palette-actions button { padding: 0; font-size: 11px; }
+.dock .layer-eye { height: 24px; }
 /* レイヤーの一覧は、パネルごとスクロールするので高さを切らない */
 .dock .layer-list { max-height: none; }
 /* 見出しを押すと折りたためる */
@@ -2215,7 +2260,7 @@ body.dock-open .dock { display: flex; }
 .folded > .popout-body,
 .folded > .fold-body,
 .panel-section.folded > .popout-placeholder { display: none; }
-.folded > .panel-label { margin-bottom: 0; }
+.dock .folded > .panel-label { margin-bottom: 0; }
 
 /* メニューから開く設定の小窓（キャンバスの左上に重ねる） */
 .sheet {
@@ -2253,19 +2298,33 @@ body.dock-open .dock { display: flex; }
 }
 
 /* ── タブレット：指で押しやすい大きさにする ── */
-.tablet-ui { --rail: 64px; }
-.tablet-ui .tool-rail { gap: 6px; padding: 10px 0; }
+.tablet-ui { --rail: 60px; --dock: 248px; }
+.tablet-ui .tool-rail { gap: 6px; padding: 8px 0; }
 .tablet-ui .tool-rail .rail-btn {
-  width: 46px;
-  height: 46px;
-  font-size: 22px;
+  width: 44px;
+  height: 44px;
+  font-size: 21px;
   border-radius: 12px;
 }
-.tablet-ui .shape-menu-btn img { width: 26px; height: 26px; }
-.tablet-ui .optbar { height: 46px; }
-.tablet-ui .optbar button { height: 32px; padding: 0 12px; }
-.tablet-ui .menubar-btn,
-.tablet-ui header > button { height: 32px; }
+.tablet-ui .tool-rail .shape-menu-btn img { width: 25px; height: 25px; }
+.tablet-ui header { height: 44px; }
+.tablet-ui header button,
+.tablet-ui .optbar button { height: 32px; padding: 0 12px; font-size: 12px; }
+.tablet-ui #btn-toggle-timeline,
+.tablet-ui #btn-undo,
+.tablet-ui #btn-redo,
+.tablet-ui #btn-dock-toggle { width: 38px; padding: 0; }
+.tablet-ui .menu-dropdown button { height: 34px; }
+.tablet-ui .menu-dropdown .bg-btn { width: 24px; min-width: 24px; height: 24px; }
+.tablet-ui .dock .palette-grid { grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.tablet-ui .dock .swatch-empty { font-size: 13px; }
+.tablet-ui .dock button { height: 30px; }
+@media (max-width: 999px) {
+  .tablet-ui header { height: auto; }
+  .tablet-ui .menubar,
+  .tablet-ui .header-actions { height: 44px; }
+  .tablet-ui header > .optbar { height: 42px; }
+}
 
 /* ── 縦向き（タブレットなど）：右のパネルを下に横長で置く ── */
 @media (orientation: portrait) and (min-width: 641px) {
@@ -2277,7 +2336,7 @@ body.dock-open .dock { display: flex; }
   /* カラー・カスタムカラー・レイヤー（とボーン）を横に並べ、それぞれの中でスクロールする */
   .dock {
     width: auto;
-    height: 300px;
+    height: 250px;
     border-left: none;
     border-top: 1px solid var(--border);
     overflow: hidden;
@@ -2289,13 +2348,13 @@ body.dock-open .dock { display: flex; }
   }
   .dock > .panel-section {
     min-height: 0;
-    padding: 10px 12px;
     border-bottom: none;
     border-left: 1px solid var(--border);
     overflow-y: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none;
     touch-action: pan-y;
   }
+  .dock > .panel-section::-webkit-scrollbar { display: none; }
   .dock > .panel-section:first-child { border-left: none; }
   /* 色選択の窓は、下のパネルのすぐ上に出す */
   .confirm-modal.modal-side,
@@ -2305,7 +2364,7 @@ body.dock-open .dock { display: flex; }
     padding-right: 0;
     padding-bottom: 20px;
   }
-  body.dock-open .confirm-modal.modal-side { padding-bottom: 316px; }
+  body.dock-open .confirm-modal.modal-side { padding-bottom: 266px; }
 }
 
 /* ── スマホ：道具バーは下、右のパネルは下から引き出す ── */
@@ -2313,11 +2372,14 @@ body.dock-open .dock { display: flex; }
   header { gap: 4px; padding: 0 6px; }
   .menubar { gap: 0; }
   .menubar-text { display: none; }
-  .menubar-btn { padding: 5px 7px; font-size: 15px; }
-  header > button { padding: 5px 8px; }
-  .artwork-chip { max-width: 70px; }
-  .optbar { height: 38px; gap: 10px; padding: 0 8px; }
-  .opt-group { padding-left: 10px; }
+  header .menubar-btn { height: 30px; padding: 0 8px; font-size: 15px; }
+  #btn-undo,
+  #btn-redo,
+  #btn-dock-toggle { width: 34px; height: 30px; }
+  .artwork-chip { max-width: 90px; }
+  header > .optbar { flex-basis: calc(100% + 12px); margin: 0 -6px; height: 36px; gap: 8px; }
+  .optbar button { height: 26px; font-size: 12px; }
+  .opt-group { padding-left: 8px; }
   .opt-hint { display: none; }
 
   .app {
@@ -2341,7 +2403,9 @@ body.dock-open .dock { display: flex; }
     max-width: 48px;
     height: 42px;
     font-size: 20px;
+    border-radius: 10px;
   }
+  .tool-rail .shape-menu-btn img { width: 24px; height: 24px; }
   .rail-sep, .rail-spacer, #btn-finger-draw { display: none !important; }
   /* 小窓は道具バーの上に、画面の幅いっぱいで開く */
   .rail-item { position: static; flex: 1 1 0; max-width: 48px; }
@@ -2353,6 +2417,7 @@ body.dock-open .dock { display: flex; }
     right: 8px;
     min-width: 0;
   }
+  .rail-popover button { height: 36px; }
   .shape-menu-dropdown { width: auto; }
 
   .dock {
@@ -2369,6 +2434,13 @@ body.dock-open .dock { display: flex; }
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
   }
+  /* 指で押すので、色もボタンも大きめにする */
+  .dock .panel-section { padding: 12px 14px; }
+  .dock .palette-grid,
+  .tablet-ui .dock .palette-grid { grid-template-columns: repeat(8, 1fr); gap: 4px; }
+  .dock .swatch-empty { font-size: 14px; }
+  .dock button { height: 32px; }
+  .dock .custom-palette-actions button { font-size: 12px; }
   body.dock-open .dock-backdrop {
     display: block;
     position: fixed;
@@ -2378,7 +2450,7 @@ body.dock-open .dock { display: flex; }
   }
   .sheet { top: 8px; left: 8px; right: 8px; width: auto; max-width: none; max-height: calc(100% - 16px); }
   .color-history { left: 8px; bottom: 10px; }
-  .zoom-controls { right: 8px; bottom: 8px; }
+  .zoom-controls { right: 8px; bottom: 10px; }
   .confirm-modal.modal-side,
   body.dock-open .confirm-modal.modal-side { justify-content: center; padding-right: 0; }
 }

@@ -6,6 +6,7 @@
 //   ・今の道具の設定の出し分け（updateOptbar）
 //   ・道具バーの「選択」の小窓
 //   ・右のパネルの出し入れ（スマホでは下から出る）と、欄の折りたたみ
+//   ・キャンバスの細いスクロールバー
 // 道具そのものの動きは script.js にある。script.js のグローバル（currentTool, selectionMode,
 // selectionMask, clipboard, canvasScreenPos など）を使うため、script.js の後に読み込むこと。
 (() => {
@@ -180,6 +181,76 @@
     });
     apply();
   });
+
+  // ── 今の道具の設定が入りきらないとき、マウスのホイールで横に送れるようにする ──
+  const optbar = $('optbar');
+  optbar.addEventListener('wheel', e => {
+    if (optbar.scrollWidth <= optbar.clientWidth || e.deltaX) return;
+    e.preventDefault();
+    optbar.scrollLeft += e.deltaY;
+  }, { passive: false });
+
+  // ── キャンバスの細いスクロールバー ──
+  // ブラウザ標準のスクロールバーは場所を取るので出さず、キャンバスの枠の端に細いものを重ねる。
+  // つまみはドラッグで動かせる。位置と長さは、スクロールや大きさの変更のたびに合わせ直す
+  const area = $('canvas-area');
+  const stage = $('canvas-stage');
+  function makeMiniScroll(horizontal) {
+    const track = document.createElement('div');
+    track.className = 'mini-scroll ' + (horizontal ? 'mini-scroll-x' : 'mini-scroll-y');
+    const thumb = document.createElement('div');
+    thumb.className = 'mini-scroll-thumb';
+    track.appendChild(thumb);
+    stage.appendChild(track);
+    // 見えている範囲・全体の長さ・今の位置（横か縦か）
+    const view = () => (horizontal ? area.clientWidth : area.clientHeight);
+    const total = () => (horizontal ? area.scrollWidth : area.scrollHeight);
+    const pos = () => (horizontal ? area.scrollLeft : area.scrollTop);
+    const trackLen = () => (horizontal ? track.clientWidth : track.clientHeight);
+    let thumbLen = 0;
+    function update() {
+      const range = total() - view();
+      if (range <= 0 || !trackLen()) { thumb.style.display = 'none'; return; }
+      thumb.style.display = '';
+      thumbLen = Math.max(28, Math.round(trackLen() * view() / total()));
+      const at = Math.round((trackLen() - thumbLen) * pos() / range);
+      thumb.style[horizontal ? 'width' : 'height'] = thumbLen + 'px';
+      thumb.style[horizontal ? 'left' : 'top'] = at + 'px';
+    }
+    thumb.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation(); // キャンバスに描いたり、再生を止めたりしない
+      const startAt = horizontal ? e.clientX : e.clientY;
+      const startPos = pos();
+      thumb.classList.add('dragging');
+      try { thumb.setPointerCapture(e.pointerId); } catch (err) { /* つかめなくても動かせる */ }
+      const onMove = ev => {
+        const free = trackLen() - thumbLen;
+        if (free <= 0) return;
+        const moved = (horizontal ? ev.clientX : ev.clientY) - startAt;
+        const next = startPos + moved * (total() - view()) / free;
+        if (horizontal) area.scrollLeft = next; else area.scrollTop = next;
+      };
+      const onUp = () => {
+        thumb.classList.remove('dragging');
+        thumb.removeEventListener('pointermove', onMove);
+        thumb.removeEventListener('pointerup', onUp);
+        thumb.removeEventListener('pointercancel', onUp);
+      };
+      thumb.addEventListener('pointermove', onMove);
+      thumb.addEventListener('pointerup', onUp);
+      thumb.addEventListener('pointercancel', onUp);
+    });
+    return update;
+  }
+  const miniScrolls = [makeMiniScroll(true), makeMiniScroll(false)];
+  const updateMiniScrolls = () => miniScrolls.forEach(update => update());
+  area.addEventListener('scroll', updateMiniScrolls, { passive: true });
+  // キャンバスエリアや中身の大きさ（拡大縮小・グリッドサイズ・パネルの出し入れ）が変わったとき
+  const miniScrollObserver = new ResizeObserver(updateMiniScrolls);
+  miniScrollObserver.observe(area);
+  miniScrollObserver.observe(area.firstElementChild);
+  updateMiniScrolls();
 
   // Esc で、開いているメニューと「選択」の小窓を閉じる
   document.addEventListener('keydown', e => {

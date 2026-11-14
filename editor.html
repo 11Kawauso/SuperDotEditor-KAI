@@ -26,10 +26,8 @@
 </head>
 <body>
 
-<!-- ヘッダー：サイト名・メニュー・元に戻す -->
+<!-- ヘッダー：メニュー・今の道具の設定・元に戻す（広い画面では1段、狭い画面では設定だけ2段目に回る） -->
 <header>
-  <h1><a class="home-link" href="index.html" title="ホームへ"><img class="home-icon" src="images/pixel-art_icon.png" alt="スーパードットエディター・改"><span class="home-name home-name-full">スーパードットエディター・改</span><span class="home-name home-name-short" title="スーパードットエディター・改（超＝スーパー、.＝ドット、田＝エディター画面のマス目）">超.田・改</span></a></h1>
-
   <!-- メニュー（たまに使うものはここにまとめる。開け閉めは layout.js） -->
   <nav class="menubar" aria-label="メニュー">
     <!-- ファイル -->
@@ -66,6 +64,7 @@
         <button id="btn-login" class="menu-item">G ログイン</button>
 
         <div class="menu-divider"></div>
+        <a class="menu-item" href="index.html" title="スーパードットエディター・改のホーム画面へ">🏠 ホームへ</a>
         <a class="menu-item" href="help.html" target="_blank" rel="noopener">❓ ヘルプ・使い方</a>
         <a class="menu-item" href="terms.html" target="_blank" rel="noopener">📄 利用規約</a>
         <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">🔒 プライバシーポリシー</a>
@@ -117,77 +116,77 @@
   </nav>
 
   <span class="artwork-chip" id="artwork-chip" style="display:none" title="開いているクラウド作品">📄 <span id="artwork-chip-name"></span></span>
-  <div class="header-sep"></div>
+  <!-- 今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
+  <div class="optbar" id="optbar">
+    <!-- 今のツールと、描画中のレイヤー -->
+    <span class="status-chip" id="status-chip" style="display:none">
+      <span class="status-tool" id="status-tool"></span>
+      <span class="status-layer" id="status-layer"></span>
+    </span>
 
-  <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
-  <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩ <span class="header-text">元に戻す</span><kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
-  <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪ <span class="header-text">やり直し</span><kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
-  <button id="btn-dock-toggle" title="色とレイヤーのパネルを出す・しまう">🎨</button>
+    <!-- 描画サイズ（ペン・消しゴム・図形） -->
+    <div class="opt-group" id="opt-brush">
+      <span class="opt-label">サイズ</span>
+      <input type="range" id="brush-slider" min="1" max="10" value="1" step="1" title="描画サイズ（一度に塗る大きさ）">
+      <span class="brush-size-val" id="brush-val">1</span>
+    </div>
 
-  <div class="user-chip" id="user-chip" style="display:none">
-    <img id="user-avatar" alt="" referrerpolicy="no-referrer">
+    <!-- 描画スタイル（ペン・消しゴム） -->
+    <div class="opt-group" id="draw-style-section">
+      <span class="opt-label">描き方</span>
+      <button class="style-btn active" data-style="normal" title="押したマスだけを塗ります">通常</button>
+      <button class="style-btn" data-style="col" title="押したマスの縦一列をまとめて塗ります">縦</button>
+      <button class="style-btn" data-style="row" title="押したマスの横一列をまとめて塗ります">横</button>
+      <label class="detect-line-label" id="detect-line-label" style="display:none;" title="描き始めたマスと違う色にぶつかったところで止まります">
+        <input type="checkbox" id="detect-line" style="accent-color:var(--accent)">
+        線を検知
+      </label>
+    </div>
+
+    <!-- 移動の対象（移動ツール） -->
+    <div class="opt-group" id="move-target-section" style="display:none" title="選択範囲があれば、その範囲だけを動かします">
+      <span class="opt-label">動かすもの</span>
+      <button class="move-target-btn active" data-all="0" title="描画中のレイヤーだけを動かします">このレイヤー</button>
+      <button class="move-target-btn" data-all="1" title="ロックされていない全レイヤーをまとめて動かします">全レイヤー</button>
+    </div>
+
+    <!-- ボーン（骨の一覧やポーズは右のパネルに出る。動きは bones.js） -->
+    <div class="opt-group" id="opt-bone" style="display:none">
+      <button class="bone-mode-btn active" data-bone-mode="build" title="関節から先へドラッグして骨を置きます">骨を置く</button>
+      <button class="bone-mode-btn" data-bone-mode="pose" title="骨の先をドラッグして回し、ポーズを付けます">ポーズ</button>
+    </div>
+
+    <!-- 選択（選んでいる間・選択範囲があるとき・貼り付けられるものがあるとき） -->
+    <div class="opt-group" id="opt-select" style="display:none">
+      <span class="opt-pair" id="range-mode-row" style="display:none;">
+        <button class="sel-btn active" id="btn-range-rect">四角で囲う</button>
+        <button class="sel-btn" id="btn-range-free">自分で指定</button>
+      </span>
+      <label class="detect-line-label" id="range-autoclose-label" style="display:none;" title="オフの場合、始点まで戻らないとなぞった軌跡のみが選択されます">
+        <input type="checkbox" id="range-autoclose" checked style="accent-color:var(--accent)">
+        始点まで自動でつなぐ
+      </label>
+      <button class="sel-btn" id="btn-cut" disabled title="切り取り（Ctrl+X）">切り取り</button>
+      <button class="sel-btn" id="btn-copy" disabled title="コピー（Ctrl+C）">コピー</button>
+      <button class="sel-btn" id="btn-paste" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
+      <button id="btn-sel-clear" class="danger" style="display:none;">選択解除</button>
+    </div>
+
+    <!-- 今の道具のひとこと説明（幅に余裕があるときだけ出る） -->
+    <span class="opt-hint" id="opt-hint"></span>
+  </div>
+
+  <!-- 右端：コマの一覧・元に戻す・やり直し・右のパネルの出し入れ -->
+  <div class="header-actions">
+    <button id="btn-toggle-timeline" class="hide-mobile" title="アニメーション（コマの一覧を出す・しまう）">🎞</button>
+    <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩<kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
+    <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪<kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
+    <button id="btn-dock-toggle" title="色とレイヤーのパネルを出す・しまう">🎨</button>
+    <div class="user-chip" id="user-chip" style="display:none">
+      <img id="user-avatar" alt="" referrerpolicy="no-referrer">
+    </div>
   </div>
 </header>
-
-<!-- 今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
-<div class="optbar" id="optbar">
-  <!-- 今のツールと、描画中のレイヤー -->
-  <span class="status-chip" id="status-chip" style="display:none">
-    <span class="status-tool" id="status-tool"></span>
-    <span class="status-layer" id="status-layer"></span>
-  </span>
-
-  <!-- 描画サイズ（ペン・消しゴム・図形） -->
-  <div class="opt-group" id="opt-brush">
-    <span class="opt-label">サイズ</span>
-    <input type="range" id="brush-slider" min="1" max="10" value="1" step="1" title="描画サイズ（一度に塗る大きさ）">
-    <span class="brush-size-val" id="brush-val">1</span>
-  </div>
-
-  <!-- 描画スタイル（ペン・消しゴム） -->
-  <div class="opt-group" id="draw-style-section">
-    <span class="opt-label">描き方</span>
-    <button class="style-btn active" data-style="normal" title="押したマスだけを塗ります">通常</button>
-    <button class="style-btn" data-style="col" title="押したマスの縦一列をまとめて塗ります">縦</button>
-    <button class="style-btn" data-style="row" title="押したマスの横一列をまとめて塗ります">横</button>
-    <label class="detect-line-label" id="detect-line-label" style="display:none;" title="描き始めたマスと違う色にぶつかったところで止まります">
-      <input type="checkbox" id="detect-line" style="accent-color:var(--accent)">
-      線を検知
-    </label>
-  </div>
-
-  <!-- 移動の対象（移動ツール） -->
-  <div class="opt-group" id="move-target-section" style="display:none" title="選択範囲があれば、その範囲だけを動かします">
-    <span class="opt-label">動かすもの</span>
-    <button class="move-target-btn active" data-all="0" title="描画中のレイヤーだけを動かします">このレイヤー</button>
-    <button class="move-target-btn" data-all="1" title="ロックされていない全レイヤーをまとめて動かします">全レイヤー</button>
-  </div>
-
-  <!-- ボーン（骨の一覧やポーズは右のパネルに出る。動きは bones.js） -->
-  <div class="opt-group" id="opt-bone" style="display:none">
-    <button class="bone-mode-btn active" data-bone-mode="build" title="関節から先へドラッグして骨を置きます">骨を置く</button>
-    <button class="bone-mode-btn" data-bone-mode="pose" title="骨の先をドラッグして回し、ポーズを付けます">ポーズ</button>
-  </div>
-
-  <!-- 選択（選んでいる間・選択範囲があるとき・貼り付けられるものがあるとき） -->
-  <div class="opt-group" id="opt-select" style="display:none">
-    <span class="opt-pair" id="range-mode-row" style="display:none;">
-      <button class="sel-btn active" id="btn-range-rect">四角で囲う</button>
-      <button class="sel-btn" id="btn-range-free">自分で指定</button>
-    </span>
-    <label class="detect-line-label" id="range-autoclose-label" style="display:none;" title="オフの場合、始点まで戻らないとなぞった軌跡のみが選択されます">
-      <input type="checkbox" id="range-autoclose" checked style="accent-color:var(--accent)">
-      始点まで自動でつなぐ
-    </label>
-    <button class="sel-btn" id="btn-cut" disabled title="切り取り（Ctrl+X）">切り取り</button>
-    <button class="sel-btn" id="btn-copy" disabled title="コピー（Ctrl+C）">コピー</button>
-    <button class="sel-btn" id="btn-paste" disabled title="貼り付け（Ctrl+V）">貼り付け</button>
-    <button id="btn-sel-clear" class="danger" style="display:none;">選択解除</button>
-  </div>
-
-  <!-- 今の道具のひとこと説明（幅に余裕があるときだけ出る） -->
-  <span class="opt-hint" id="opt-hint"></span>
-</div>
 
 <!-- メイン：左に道具・中央にキャンバス・右に色とレイヤー -->
 <div class="app">
@@ -496,10 +495,8 @@
       <div class="custom-palette-actions">
         <button id="btn-delete-mode">削除</button>
         <button id="btn-delete-all" class="danger">全削除</button>
-      </div>
-      <div class="custom-palette-actions">
-        <button id="btn-palette-export" title="カスタムカラーをファイルに書き出す（.hex / .gpl）">書き出し</button>
-        <button id="btn-palette-import" title="パレットファイルを読み込む（.hex / .gpl / .pal / .txt / .png）">読み込み</button>
+        <button id="btn-palette-export" title="カスタムカラーをファイルに書き出す（.hex / .gpl）">書出</button>
+        <button id="btn-palette-import" title="パレットファイルを読み込む（.hex / .gpl / .pal / .txt / .png）">読込</button>
       </div>
       <input type="file" id="palette-file-input" accept=".hex,.gpl,.pal,.txt,.png,.gif,.bmp" style="display:none">
       <div class="layer-hint" id="custom-palette-hint" style="display:none"></div>
