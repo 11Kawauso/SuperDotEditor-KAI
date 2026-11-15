@@ -3463,8 +3463,9 @@ function closeShapeMenu() {
   shapeMenuDropdown.style.display = 'none';
 }
 
-shapeMenuBtn.addEventListener('click', e => {
-  e.stopPropagation();
+// クリックを document まで届かせて、ほかの小窓（道具バーの「選択」など）やメニューを閉じさせる。
+// 図形メニュー自身は、下の「外を押したら閉じる」で中のクリックを除いているので閉じない
+shapeMenuBtn.addEventListener('click', () => {
   shapeMenuDropdown.style.display = shapeMenuDropdown.style.display === 'none' ? 'flex' : 'none';
 });
 
