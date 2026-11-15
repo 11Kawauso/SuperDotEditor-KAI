@@ -5,8 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>スーパードットエディター・改</title>
 <link rel="icon" href="images/pixel-art_icon.png" type="image/png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ドットエディター改">
+<script src="pwa.js" defer></script>
 <link rel="stylesheet" href="style.css">
 <script>
+  // デスクトップアプリ（desktop フォルダの Electron）の中で開いているとき。
+  // ログイン・クラウド保存・PEPORIS など、アプリでは使わない物を隠す（style.css の .desktop-app）
+  if (window.desktopApi) document.documentElement.classList.add('desktop-app');
   // ホーム画面のテトリスボタン（editor.html?tetris）から来たときは、エディタの画面を
   // 一瞬も見せずにテトリス画面にするため、準備ができるまでページ全体を隠しておく（tetris.jsが外す）
   if (new URLSearchParams(location.search).has('tetris')) document.documentElement.classList.add('tetris-direct');
@@ -36,18 +46,22 @@
       <div class="file-dropdown menu-dropdown" id="file-dropdown" style="display:none">
 
         <button id="btn-new-canvas" class="menu-item">新規キャンバス</button>
+        <button id="btn-local-gallery" class="menu-item" title="ギャラリーに保存した作品の一覧。開く・削除ができます">ギャラリー</button>
         <button id="btn-open-file" class="menu-item" title="「作品ファイルとして保存」したファイルを開いて、続きを編集します">作品ファイルを開く</button>
         <input type="file" id="project-file-input" accept=".json,application/json" style="display:none">
 
         <div id="save-menu-group">
           <button id="btn-menu-save" class="menu-item">保存 ▸</button>
           <div class="menu-submenu" id="save-subdropdown" style="display:none">
+            <button id="btn-local-save" class="menu-item" title="ギャラリーに保存します。開いている作品があれば、そこに上書きします">ギャラリーに保存<kbd class="menu-key" data-shortcut="save">Ctrl+S</kbd></button>
+            <button id="btn-local-save-as" class="menu-item" title="名前を付けて、新しい作品としてギャラリーに保存します">名前を付けてギャラリーに保存<kbd class="menu-key" data-shortcut="saveAs">Ctrl+Shift+S</kbd></button>
+            <div class="menu-divider"></div>
             <button id="btn-download" class="menu-item">PNG保存</button>
             <button id="btn-download-transparent" class="menu-item">透過保存</button>
             <button id="btn-download-gif" class="menu-item" title="全部のコマを、くり返し再生するGIFアニメとして保存します">GIF保存</button>
             <button id="btn-save-file" class="menu-item" title="レイヤーなども含めて自分のフォルダに保存し、あとで「作品ファイルを開く」で続きを編集できます">作品ファイルとして保存</button>
-            <button id="btn-save-peporis" class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">PEPORISに保存</button>
-            <div id="cloud-save-menu" style="display:none">
+            <button id="btn-save-peporis" data-web-only class="menu-item" title="今の絵（選択範囲があればその中だけ）を、PEPORISのカスタムブロックとしてこのブラウザに保存します">PEPORISに保存</button>
+            <div id="cloud-save-menu" data-web-only style="display:none">
               <button id="btn-cloud-save" class="menu-item">クラウド保存 ▸</button>
               <div class="menu-submenu" id="cloud-save-dropdown" style="display:none">
                 <button id="btn-cloud-save-new" class="menu-item">新規保存</button>
@@ -59,12 +73,12 @@
 
         <div class="menu-divider"></div>
         <button id="btn-menu-ai" class="menu-item" title="Claude などの AI のチャットから、このエディタでドット絵を描いてもらいます">AI に描いてもらう</button>
-        <button id="btn-gallery" class="menu-item" style="display:none">ギャラリー</button>
-        <button id="btn-logout" class="menu-item" style="display:none">ログアウト</button>
-        <button id="btn-login" class="menu-item">ログイン</button>
+        <button id="btn-gallery" data-web-only class="menu-item" style="display:none">クラウドのギャラリー</button>
+        <button id="btn-logout" data-web-only class="menu-item" style="display:none">ログアウト</button>
+        <button id="btn-login" data-web-only class="menu-item">ログイン</button>
 
-        <div class="menu-divider"></div>
-        <a class="menu-item" href="index.html" title="スーパードットエディター・改のホーム画面へ">ホームへ</a>
+        <div class="menu-divider" data-web-only></div>
+        <a class="menu-item" data-web-only href="index.html" title="スーパードットエディター・改のホーム画面へ">ホームへ</a>
       </div>
     </div>
 
@@ -144,9 +158,9 @@
       <div class="menu-dropdown" style="display:none">
         <a class="menu-item" href="help.html" target="_blank" rel="noopener">ヘルプ・使い方</a>
         <button class="menu-item" id="btn-menu-shortcuts">ショートカット一覧<kbd class="menu-key">?</kbd></button>
-        <div class="menu-divider"></div>
-        <a class="menu-item" href="terms.html" target="_blank" rel="noopener">利用規約</a>
-        <a class="menu-item" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
+        <div class="menu-divider" data-web-only></div>
+        <a class="menu-item" data-web-only href="terms.html" target="_blank" rel="noopener">利用規約</a>
+        <a class="menu-item" data-web-only href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>
       </div>
     </div>
   </nav>
@@ -212,7 +226,7 @@
     <button id="btn-undo" disabled title="元に戻す（Ctrl+Z）">↩<kbd class="key-hint" data-shortcut="undo">Ctrl+Z</kbd></button>
     <button id="btn-redo" disabled title="やり直し（Ctrl+Y）">↪<kbd class="key-hint" data-shortcut="redo">Ctrl+Y</kbd></button>
     <button id="btn-dock-toggle" title="色とレイヤーのパネルを出す・しまう">🎨</button>
-    <div class="user-chip" id="user-chip" style="display:none">
+    <div class="user-chip" data-web-only id="user-chip" style="display:none">
       <img id="user-avatar" alt="" referrerpolicy="no-referrer">
     </div>
   </div>
@@ -294,7 +308,7 @@
 
     <!-- 拡大縮小（キャンバスの右下） -->
     <div class="zoom-controls">
-      <button id="btn-tetris" class="tetris-start-btn" title="今のキャンバスサイズでPEPORIS">
+      <button id="btn-tetris" data-web-only class="tetris-start-btn" title="今のキャンバスサイズでPEPORIS">
         <svg width="15" height="10" viewBox="0 0 32 21" aria-hidden="true" shape-rendering="crispEdges">
           <g fill="#8e44ad">
             <rect x="0" y="0" width="10" height="10"/><rect x="11" y="0" width="10" height="10"/>
@@ -782,6 +796,33 @@
   </div>
 </div>
 
+<!-- この端末のギャラリー（local-gallery.js）。ブラウザではこのブラウザの中に、
+     デスクトップアプリではパソコンのフォルダに保存する。ログインはいらない -->
+<div class="confirm-modal" id="local-gallery-modal" style="display:none">
+  <div class="confirm-card gallery-card">
+    <p id="local-gallery-title">ギャラリー</p>
+    <div class="local-gallery-where" id="local-gallery-where"></div>
+    <div class="gallery-list" id="local-gallery-list"></div>
+    <div class="confirm-actions">
+      <button id="btn-local-gallery-folder" class="desktop-only" title="作品を保存しているフォルダをエクスプローラーで開きます">📂 フォルダを開く</button>
+      <button id="btn-local-gallery-cloud" data-web-only title="ログインして、クラウドに保存した作品を開きます">☁ クラウドのギャラリー</button>
+      <button id="btn-local-gallery-close">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ギャラリーに保存するときの名前（local-gallery.js） -->
+<div class="confirm-modal" id="local-save-modal" style="display:none">
+  <div class="confirm-card">
+    <p>名前を付けてギャラリーに保存</p>
+    <input type="text" id="local-save-name" class="save-name-input" maxlength="60" placeholder="作品名">
+    <div class="confirm-actions">
+      <button id="btn-local-save-ok" class="primary">保存</button>
+      <button id="btn-local-save-cancel">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <!-- 作品名入力モーダル -->
 <div class="confirm-modal" id="save-name-modal" style="display:none">
   <div class="confirm-card">
@@ -921,7 +962,16 @@
 <script src="bones.js"></script>
 <script src="ai-bridge.js"></script>
 <script src="layout.js"></script>
+<script src="local-gallery.js"></script>
 <script src="tetris.js"></script>
-<script type="module" src="cloud.js"></script>
+<script>
+  // ログイン・クラウド保存は、デスクトップアプリでは読み込まない
+  if (!window.desktopApi) {
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'cloud.js';
+    document.body.appendChild(s);
+  }
+</script>
 </body>
 </html>

@@ -99,11 +99,15 @@ function setCurrentArtwork(id, name) {
   currentArtworkId = id;
   currentArtworkName = name || '';
   if (id) {
+    // ギャラリー（この端末）の作品とは同時に開かない（local-gallery.js）
+    if (window.clearLocalWork) window.clearLocalWork();
+    artworkChip.title = '開いているクラウドの作品';
     artworkChipName.textContent = currentArtworkName;
     artworkChip.style.display = 'inline-flex';
     btnSaveOver.textContent = `上書き保存（${currentArtworkName}）`;
   } else {
-    artworkChip.style.display = 'none';
+    // ギャラリー（この端末）の作品を開いているときは、その名前を出したままにする
+    if (!(window.getLocalWork && window.getLocalWork())) artworkChip.style.display = 'none';
     btnSaveOver.textContent = '上書き保存（作品を選択…）';
   }
 }
@@ -399,11 +403,10 @@ btnGallery.addEventListener('click', () => {
   openGallery('browse');
 });
 
-// スタート画面（白紙で始める／画像を読み込む）の「ギャラリーから開く」。
+// クラウドのギャラリーを開く（ギャラリー（この端末）の「☁ クラウドのギャラリー」から呼ばれる。local-gallery.js）。
 // ログイン済みならそのままギャラリーへ、未ログインならその場でログインを
 // 促し、成功したら続けてギャラリーを開く。
-const btnStartGallery = document.getElementById('btn-start-gallery');
-btnStartGallery.addEventListener('click', async () => {
+window.openCloudGallery = async () => {
   if (auth.currentUser) {
     openGallery('browse');
     return;
@@ -416,7 +419,7 @@ btnStartGallery.addEventListener('click', async () => {
       showToast(cloudErrorText('ログインに失敗しました: ', err), true);
     }
   }
-});
+};
 
 btnGalleryClose.addEventListener('click', () => {
   galleryModal.style.display = 'none';

@@ -1,0 +1,17 @@
+{
+  "name": "スーパードットエディター・改",
+  "short_name": "ドットエディター改",
+  "description": "ブラウザで使えるドット絵エディタ",
+  "id": "./editor.html",
+  "start_url": "./editor.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f5f3",
+  "theme_color": "#ffffff",
+  "lang": "ja",
+  "icons": [
+    { "src": "images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "images/pixel-art_icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

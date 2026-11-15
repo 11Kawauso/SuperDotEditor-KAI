@@ -1,0 +1,57 @@
+{
+  "name": "superdoteditor-kai-desktop",
+  "productName": "SuperDotEditor-KAI",
+  "version": "1.0.0",
+  "description": "スーパードットエディター・改 のデスクトップアプリ",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "local.superdoteditor.kai",
+    "productName": "SuperDotEditor-KAI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "web",
+        "filter": [
+          "*.html",
+          "*.js",
+          "*.css",
+          "*.webmanifest",
+          "images/**/*",
+          "mcp/server.js",
+          "mcp/README.md"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ドットエディター改"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  }
+}

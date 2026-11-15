@@ -1448,6 +1448,19 @@ body.tetris-playing .timeline { visibility: hidden; }
   font-size: 12px;
   text-align: center;
 }
+/* ギャラリー（この端末）：保存先の案内 */
+.local-gallery-where {
+  margin-top: -8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* デスクトップアプリ（desktop フォルダ）では、ログイン・クラウド保存・PEPORIS などを出さない。
+   逆に、アプリでだけ使う物（フォルダを開くなど）はブラウザでは出さない */
+.desktop-app [data-web-only] { display: none !important; }
+html:not(.desktop-app) .desktop-only { display: none !important; }
 .save-name-input {
   width: 100%;
   font-family: inherit;

@@ -1733,11 +1733,16 @@ btnRedo.addEventListener('click', redo);
 // Macでは Ctrl ではなく ⌘ を使うので、ボタンのキー表示をMacの書き方に合わせる
 // （やり直しはMacで一般的な ⌘⇧Z を表示する。⌘Y でも動く）
 if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
-  const MAC_SHORTCUTS = { undo: ['⌘Z', '元に戻す（⌘Z）'], redo: ['⌘⇧Z', 'やり直し（⌘⇧Z）'] };
+  const MAC_SHORTCUTS = {
+    undo: ['⌘Z', '元に戻す（⌘Z）'], redo: ['⌘⇧Z', 'やり直し（⌘⇧Z）'],
+    save: ['⌘S'], saveAs: ['⌘⇧S'],
+  };
   document.querySelectorAll('[data-shortcut]').forEach(k => {
-    const [label, title] = MAC_SHORTCUTS[k.dataset.shortcut];
+    const entry = MAC_SHORTCUTS[k.dataset.shortcut];
+    if (!entry) return;
+    const [label, title] = entry;
     k.textContent = label;
-    k.closest('button').title = title;
+    if (title) k.closest('button').title = title;
   });
 }
 
@@ -3340,6 +3345,8 @@ const SHORTCUT_GROUPS = [
     ['Alt＋クリック', '道具はそのままで色を拾う'],
   ]],
   ['編集', [
+    ['Ctrl＋S', 'ギャラリーに保存（開いている作品に上書き）'],
+    ['Ctrl＋Shift＋S', '名前を付けてギャラリーに保存'],
     ['Ctrl＋Z', '元に戻す'],
     [IS_MAC ? 'Ctrl＋Shift＋Z' : 'Ctrl＋Y', 'やり直し'],
     ['Ctrl＋C ／ X ／ V', 'コピー／切り取り／貼り付け'],
@@ -4739,6 +4746,7 @@ function resetToNewCanvas() {
   fitCanvasToView();
   centerCanvas();
   if (window.clearCurrentArtwork) window.clearCurrentArtwork();
+  if (window.clearLocalWork) window.clearLocalWork();
 }
 
 const newCanvasConfirmModal = document.getElementById('new-canvas-confirm-modal');
@@ -4953,6 +4961,7 @@ function flushAutosave(force) {
       savedAt: Date.now(),
       unsaved: hasUnsavedChanges,
       artwork: window.getCurrentArtwork ? window.getCurrentArtwork() : null,
+      localWork: window.getLocalWork ? window.getLocalWork() : null, // 開いていたギャラリー（この端末）の作品
       project: serializeProject(),
     }));
   } catch (err) {
@@ -4995,7 +5004,8 @@ function showToast(msg, isError) {
 }
 
 function projectFileName() {
-  const art = window.getCurrentArtwork && window.getCurrentArtwork();
+  const art = (window.getCurrentArtwork && window.getCurrentArtwork())
+    || (window.getLocalWork && window.getLocalWork());
   const base = (art && art.name) || `dot-art_${cols}x${rows}`;
   return base.replace(/[\\/:*?"<>|]/g, '_') + PROJECT_FILE_EXT; // ファイル名に使えない文字は置き換える
 }
@@ -5027,25 +5037,44 @@ async function saveProjectFile() {
 }
 
 // 作品ファイルの中身を確かめて、読み込める形に整える（壊れたファイルや別のJSONならnull）
+// コマの無い作品（version 1：layers）と、コマのある作品（version 2：frames）の両方を読める。ボーン（rig）もそのまま渡す
 function sanitizeProjectFile(data) {
   const p = data && data.app === PROJECT_FILE_APP ? data.project : null;
-  if (!p || !Array.isArray(p.layers) || !Number.isFinite(p.cols) || !Number.isFinite(p.rows)) return null;
-  return {
-    cols: Math.round(p.cols),
-    rows: Math.round(p.rows),
-    layers: p.layers.slice(0, 100).map(l => ({
-      name: typeof l.name === 'string' ? l.name.slice(0, 50) : 'レイヤー',
-      visible: l.visible !== false,
-      opacity: typeof l.opacity === 'number' && l.opacity >= 0 && l.opacity <= 1 ? l.opacity : 1,
-      locked: !!l.locked,
-      // 色として使えない値は透明として扱う
-      palette: Array.isArray(l.palette)
-        ? l.palette.map(h => (typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : null))
-        : [],
-      data: typeof l.data === 'string' ? l.data : '',
-    })),
-  };
+  if (!p || !Number.isFinite(p.cols) || !Number.isFinite(p.rows)) return null;
+  const cleanLayers = list => list.slice(0, 100).map(l => ({
+    name: typeof l.name === 'string' ? l.name.slice(0, 50) : 'レイヤー',
+    visible: l.visible !== false,
+    opacity: typeof l.opacity === 'number' && l.opacity >= 0 && l.opacity <= 1 ? l.opacity : 1,
+    locked: !!l.locked,
+    // 色として使えない値は透明として扱う
+    palette: Array.isArray(l.palette)
+      ? l.palette.map(h => (typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : null))
+      : [],
+    data: typeof l.data === 'string' ? l.data : '',
+  }));
+  const out = { cols: Math.round(p.cols), rows: Math.round(p.rows) };
+  if (Array.isArray(p.frames) && p.frames.length) {
+    const frames = p.frames.slice(0, 1000).filter(f => f && Array.isArray(f.layers));
+    if (!frames.length) return null;
+    out.version = 2;
+    out.frames = frames.map(f => ({
+      layers: cleanLayers(f.layers),
+      ...(Number.isInteger(f.active) ? { active: f.active } : {}),
+      ...(Number.isFinite(f.delay) ? { delay: f.delay } : {}),
+    }));
+    if (Number.isInteger(p.current)) out.current = p.current;
+    if (Number.isFinite(p.fps)) out.fps = p.fps;
+  } else if (Array.isArray(p.layers)) {
+    out.layers = cleanLayers(p.layers);
+  } else {
+    return null;
+  }
+  if (p.rig && typeof p.rig === 'object' && Array.isArray(p.rig.bones)) out.rig = p.rig;
+  return out;
 }
+// ほかのファイル（local-gallery.js）からも使う
+window.sanitizeProjectFile = sanitizeProjectFile;
+window.PROJECT_FILE_APP = PROJECT_FILE_APP;
 
 const projectFileInput = document.getElementById('project-file-input');
 function openProjectFile() {
@@ -5066,6 +5095,7 @@ projectFileInput.addEventListener('change', async () => {
   }
   loadProjectData(project);
   if (window.clearCurrentArtwork) window.clearCurrentArtwork(); // クラウド作品との紐付けは外す
+  if (window.clearLocalWork) window.clearLocalWork();             // ギャラリーの作品との紐付けも外す
   markProjectSaved(); // 開いた直後は保存済みの状態。自動保存にも反映する
   showToast(`「${file.name}」を開きました`);
 });
@@ -5106,6 +5136,7 @@ btnRestore.addEventListener('click', () => {
   }
   // 開いていたクラウド作品の紐付け（上書き保存先）も戻す
   if (rec.artwork && window.setCurrentArtwork) window.setCurrentArtwork(rec.artwork.id, rec.artwork.name);
+  if (rec.localWork && window.setLocalWork) window.setLocalWork(rec.localWork.id, rec.localWork.name);
   hasUnsavedChanges = !!rec.unsaved;
 });
 
