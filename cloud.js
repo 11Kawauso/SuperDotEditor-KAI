@@ -114,13 +114,11 @@ function setCurrentArtwork(id, name) {
 
 // ── クラウド保存ドロップダウン ──
 function closeCloudSaveMenu() {
-  cloudSaveDropdown.style.display = 'none';
+  window.setSubmenuOpen(btnCloudSave, cloudSaveDropdown, false);
 }
 
-btnCloudSave.addEventListener('click', e => {
-  e.stopPropagation();
-  cloudSaveDropdown.style.display = cloudSaveDropdown.style.display === 'none' ? 'flex' : 'none';
-});
+// 開け閉めは script.js のファイルメニューと同じ（マウスは乗せると開く）
+btnCloudSave.addEventListener('click', e => window.submenuClick(e, btnCloudSave, cloudSaveDropdown));
 
 document.addEventListener('click', e => {
   if (!cloudSaveMenu.contains(e.target)) closeCloudSaveMenu();

@@ -4041,13 +4041,44 @@ const fileDropdown = document.getElementById('file-dropdown');
 const btnMenuSave = document.getElementById('btn-menu-save');
 const saveSubdropdown = document.getElementById('save-subdropdown');
 
+const btnCloudSaveMenu = document.getElementById('btn-cloud-save');
+const cloudSaveDropdown = document.getElementById('cloud-save-dropdown');
+
+// サブメニュー（保存・クラウド保存）を出す・しまう。出している間は親の項目に色を付ける
+function setSubmenuOpen(trigger, sub, open) {
+  sub.style.display = open ? 'flex' : 'none';
+  trigger.classList.toggle('open', open);
+  if (!open && sub === saveSubdropdown) setSubmenuOpen(btnCloudSaveMenu, cloudSaveDropdown, false);
+}
+window.setSubmenuOpen = setSubmenuOpen; // cloud.js（クラウド保存）からも使う
+
 function closeFileMenu() {
   fileDropdown.style.display = 'none';
-  saveSubdropdown.style.display = 'none';
-  const cloudDD = document.getElementById('cloud-save-dropdown');
-  if (cloudDD) cloudDD.style.display = 'none';
+  setSubmenuOpen(btnMenuSave, saveSubdropdown, false);
 }
 window.closeFileMenu = closeFileMenu;
+
+// マウスでは、親の項目に乗せるだけで右横に中身を出し、同じ並びのほかの項目に移ったらしまう
+// （指・Pencil では今までどおり押して開け閉めする）
+function hoverSubmenu(trigger, sub, siblings) {
+  trigger.addEventListener('pointerenter', e => {
+    if (e.pointerType === 'mouse') setSubmenuOpen(trigger, sub, true);
+  });
+  siblings.addEventListener('pointerover', e => {
+    if (e.pointerType !== 'mouse') return;
+    const item = e.target.closest('.menu-item');
+    if (item && item !== trigger && !sub.contains(item)) setSubmenuOpen(trigger, sub, false);
+  });
+}
+hoverSubmenu(btnMenuSave, saveSubdropdown, fileDropdown);
+hoverSubmenu(btnCloudSaveMenu, cloudSaveDropdown, saveSubdropdown);
+// マウスで押したときは、乗せて開いた中身を閉じないようにする（指などでは開け閉めを切り替える）
+function submenuClick(e, trigger, sub) {
+  e.stopPropagation();
+  const open = e.pointerType === 'mouse' ? true : sub.style.display === 'none';
+  setSubmenuOpen(trigger, sub, open);
+}
+window.submenuClick = submenuClick;
 
 btnFileMenu.addEventListener('click', e => {
   e.stopPropagation();
@@ -4058,15 +4089,7 @@ btnFileMenu.addEventListener('click', e => {
   }
 });
 
-btnMenuSave.addEventListener('click', e => {
-  e.stopPropagation();
-  const opening = saveSubdropdown.style.display === 'none';
-  saveSubdropdown.style.display = opening ? 'flex' : 'none';
-  if (!opening) {
-    const cloudDD = document.getElementById('cloud-save-dropdown');
-    if (cloudDD) cloudDD.style.display = 'none';
-  }
-});
+btnMenuSave.addEventListener('click', e => submenuClick(e, btnMenuSave, saveSubdropdown));
 
 document.addEventListener('click', e => {
   if (!fileMenu.contains(e.target)) closeFileMenu();

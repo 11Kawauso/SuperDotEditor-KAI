@@ -1598,16 +1598,46 @@ a.menu-item:hover { background: var(--bg); }
   background: var(--border);
   margin: 4px 2px;
 }
-/* 保存＞クラウド保存のような入れ子のサブメニュー。フライアウトではなく
-   親項目の下にインデントして展開する（絶対配置にすると入れ子のたびに
-   基準要素を用意する必要があり複雑になるため）。 */
+/* 保存＞クラウド保存のような入れ子のサブメニュー。親の項目の右横に出す（フライアウト）。
+   基準になるのは、親の項目とサブメニューを包んでいる要素（#save-menu-group・#cloud-save-menu） */
+#save-menu-group,
+#cloud-save-menu { position: relative; }
 .menu-submenu {
+  position: absolute;
+  top: -5px; /* 中の1つ目の項目が、親の項目と同じ高さに並ぶように */
+  left: calc(100% + 6px);
+  z-index: 71;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-left: 10px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+  padding: 4px;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+/* 中身を出している親の項目には色を付ける */
+.menu-item.has-submenu.open { background: var(--bg); }
+/* 親の項目の右端の ▸ */
+.menu-arrow {
+  margin-left: auto;
+  padding-left: 20px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+/* スマホは横に並べる幅が無いので、今までどおり親の項目の下に字下げして出す */
+@media (max-width: 640px) {
+  .menu-submenu {
+    position: static;
+    min-width: 0;
+    margin-left: 10px;
+    padding: 0 0 0 8px;
+    border: none;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 
