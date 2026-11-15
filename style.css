@@ -835,7 +835,14 @@ input, select, textarea {
   align-items: center;
   justify-content: center;
 }
-#zoom-label { min-width: 40px; text-align: center; color: var(--text-muted); }
+.zoom-controls #zoom-label {
+  width: auto;
+  min-width: 44px;
+  padding: 0 4px;
+  border-radius: 11px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
 /* テンプレート図形メニュー（道具バーの中。並びの指定はファイルの最後） */
 .shape-menu-btn img {
@@ -1124,6 +1131,48 @@ body.tetris-playing .timeline { visibility: hidden; }
   flex-shrink: 0;
 }
 .statusbar span b { color: var(--text); font-weight: 500; }
+.statusbar { white-space: nowrap; overflow: hidden; }
+/* 右端の「ショートカット」ボタン */
+.statusbar .stat-shortcuts {
+  margin-left: auto;
+  height: 18px;
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+.statusbar .stat-shortcuts:hover { color: var(--text); border-color: var(--border); }
+
+/* キーボードショートカットの一覧 */
+.shortcuts-card { width: min(700px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; text-align: left; }
+.shortcuts-card > p { text-align: center; }
+.shortcuts-body {
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+  margin-bottom: 14px;
+}
+.shortcuts-group { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.shortcuts-body dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: baseline; font-size: 12px; }
+.shortcuts-body dt { white-space: nowrap; }
+.shortcuts-body kbd {
+  display: inline-block; /* 枠が行からはみ出して、一覧にスクロールバーが出ないように */
+  line-height: 1.4;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg, transparent);
+}
+.shortcuts-body dd { color: var(--text); }
+@media (max-width: 640px) {
+  .shortcuts-body { grid-template-columns: 1fr; }
+}
 
 /* スタートモーダル */
 #start-overlay {
@@ -1157,6 +1206,7 @@ body.tetris-playing .timeline { visibility: hidden; }
 
   /* ステータスバー */
   .statusbar { font-size: 10px; gap: 8px; padding: 0 6px; }
+  .statusbar .stat-extra { display: none; } /* 狭いので、描画サイズと倍率（右下にも出ている）は省く */
 
   /* スタートカード */
   .start-card { padding: 20px 20px; }

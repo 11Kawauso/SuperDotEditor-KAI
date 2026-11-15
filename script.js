@@ -32,6 +32,11 @@ let showGrid = true;
 let uploadedImage = null;
 let isPainting = false;
 let lastCell = null;
+// Shift＋クリックの直線の始点：ペン・消しゴムで最後に描いたマス（まだ描いていなければ null）
+let lastPaintPoint = null;
+// Shift・Alt を押しているか（押した瞬間に、カーソルを動かさなくても表示を切り替えるため）
+let shiftHeld = false;
+let altHeld = false;
 let started = false;
 let brushSize = 1;
 let drawStyle = 'normal';
@@ -68,6 +73,7 @@ const statPos   = document.getElementById('stat-pos');
 const statColor = document.getElementById('stat-color');
 const statGrid  = document.getElementById('stat-grid');
 const zoomLabel = document.getElementById('zoom-label');
+const statZoom  = document.getElementById('stat-zoom');
 // タブレット用レイアウトかどうか（判定は editor.html の head で行う）
 const tabletUI = document.documentElement.classList.contains('tablet-ui');
 
@@ -190,6 +196,7 @@ function syncActiveCells() {
 
 function initCells(c, r, keepOld) {
   invalidateAllLayerCaches(); // 全レイヤーのセル配列を作り直すため
+  lastPaintPoint = null;      // 大きさが変わったら、Shift＋クリックの直線の始点は持ち越さない
   cols = c; rows = r;
   if (keepOld && layers.length) {
     // 大きさは全部のコマで同じなので、どのコマのレイヤーも作り直す
@@ -387,6 +394,12 @@ function drawOverlayCell(col, row) {
   if (selectionMode === 'range' && rangeStart) return;
   if (currentTool === 'move' && selectionMode === 'none') return; // 移動ツールにブラシ枠は不要
   if (col < 0 || col >= cols || row < 0 || row >= rows) return;
+  if (altPickActive()) return; // Alt で一時的にスポイトにしている間は、拡大鏡だけを出す
+  if (shiftLineActive()) {
+    // Shift を押している間は、前に描いたマスからここまでの直線を予告する
+    drawLinePreview(lastPaintPoint.col, lastPaintPoint.row, col, row, false);
+    return;
+  }
   const b = brushRect(col, row);
   const x1 = Math.max(0, b.c1) * px;
   const y1 = Math.max(0, b.r1) * px;
@@ -734,10 +747,10 @@ function applyLineToCells(c1, r1, c2, r2) {
   }
 }
 
-function drawLinePreview(c1, r1, c2, r2) {
+function drawLinePreview(c1, r1, c2, r2, clear = true) {
   const px = cellPx();
   const ctx = cOv.getContext('2d');
-  ctx.clearRect(0, 0, cOv.width, cOv.height);
+  if (clear) ctx.clearRect(0, 0, cOv.width, cOv.height);
   ctx.fillStyle = 'rgba(59,130,246,0.6)';
   for (const {col, row} of interpolateCells(c1, r1, c2, r2)) {
     const b = brushRect(col, row);
@@ -867,23 +880,84 @@ cOv.addEventListener('mousedown', e => {
     startMoveDrag(col, row);
     return;
   }
+  // Alt（Mac は option）を押しながらのクリックは、道具を持ち替えずにその色を拾う
+  if (altPickActive(e)) {
+    pickColorAtCell(col, row);
+    return;
+  }
   if (currentTool === 'shape') {
     if (activeLayerLocked()) return;
     shapeStart = {col, row};
     return;
   }
   if (activeLayerLocked() && currentTool !== 'pick') return;
+  const lineFrom = shiftLineActive(e) ? lastPaintPoint : null;
   pushHistory();
   isPainting = true;
   lastCell = {col, row};
-  applyToolSingle(col, row);
+  if (lineFrom) {
+    // Shift＋クリック：前に描いたマスからここまでを直線で結ぶ
+    applyToolLine(lineFrom.col, lineFrom.row, col, row);
+  } else {
+    applyToolSingle(col, row);
+  }
+  notePaintPoint(col, row);
   drawCells();
 });
+
+// ── Shift＋クリックの直線・Alt＋クリックのスポイト ──
+function notePaintPoint(col, row) {
+  if (currentTool === 'pen' || currentTool === 'erase') lastPaintPoint = {col, row};
+}
+// Shift＋クリックで直線を引ける状態か（e が無いときは、今押しているキーで判断する）
+function shiftLineActive(e) {
+  const shift = e ? e.shiftKey : shiftHeld;
+  return !!(shift && lastPaintPoint && !isPainting && selectionMode === 'none'
+    && (currentTool === 'pen' || currentTool === 'erase'));
+}
+// Alt で一時的にスポイトにできる状態か（描く道具を選んでいて、描いている途中でないとき）
+function altPickActive(e) {
+  const alt = e ? e.altKey : altHeld;
+  return !!(alt && started && !isPainting && !shapeStart && selectionMode === 'none'
+    && ['pen', 'erase', 'fill', 'shape'].includes(currentTool));
+}
+function pickColorAtCell(col, row) {
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return;
+  const c = compositeAt(row, col);
+  if (c) setColor(c);
+}
+
+// キーを押した・離した瞬間に、カーソルの所の表示（直線の予告・拡大鏡）を切り替える
+let lastCanvasMouse = null; // キャンバスの上での最後のマウスの位置 {clientX, clientY}
+function refreshModifierPreview() {
+  if (!started || !lastCanvasMouse || isPainting) return;
+  const {col, row} = getCell(lastCanvasMouse);
+  drawOverlayCell(col, row);
+  updateMouseLoupe({ ...lastCanvasMouse, altKey: altHeld, shiftKey: shiftHeld });
+}
+function setModifierKeys(e) {
+  const shift = !!e.shiftKey, alt = !!e.altKey;
+  if (shift === shiftHeld && alt === altHeld) return;
+  shiftHeld = shift; altHeld = alt;
+  refreshModifierPreview();
+}
+document.addEventListener('keydown', e => {
+  // Windows では Alt だけを押して離すとブラウザのメニューに移ってしまうので、キャンバスを使っている間は止める
+  if (e.key === 'Alt' && started && !isTypingTarget(e.target)) e.preventDefault();
+  setModifierKeys(e);
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'Alt' && started && !isTypingTarget(e.target)) e.preventDefault();
+  setModifierKeys(e);
+});
+window.addEventListener('blur', () => setModifierKeys({ shiftKey: false, altKey: false }));
 cOv.addEventListener('mousemove', e => {
   if (!started) return;
   // タップの直後にブラウザが真似して送ってくるマウス操作では、ガイドの枠を出さない
   // （出すとタップした所に枠が残り、その後 Pencil を動かしても付いてこない）
   if (isEmulatedMouse()) return;
+  lastCanvasMouse = { clientX: e.clientX, clientY: e.clientY };
+  shiftHeld = e.shiftKey; altHeld = e.altKey; // ほかのウィンドウで押した・離したキーにも合わせる
   const {col, row} = getCell(e);
   if (selectionMode === 'range' && rangeStart) {
     if (rangeSelectMode === 'free') {
@@ -931,6 +1005,7 @@ cOv.addEventListener('mousemove', e => {
     applyToolLine(lastCell.col, lastCell.row, col, row);
   }
   lastCell = {col, row};
+  notePaintPoint(col, row);
 });
 document.addEventListener('mouseup', e => {
   if (selectionMode === 'range' && rangeStart) {
@@ -978,6 +1053,7 @@ cOv.addEventListener('mouseleave',() => {
   // これを消さないと、反対側から再進入したときに出た地点と
   // 入った地点が直線補間でつながって描画されてしまう。
   lastCell = null;
+  lastCanvasMouse = null;
   hidePickLoupe();
 });
 // iPad で Pencil を浮かせて動かしたときもガイドの枠が出るが、Pencil を画面から遠ざけたときは
@@ -1089,17 +1165,21 @@ function hidePickLoupe() {
   pickLoupe.style.display = 'none';
 }
 
-// キャンバス上のスポイト：合成後の色を見せる
+// キャンバス上のスポイト：合成後の色を見せる（Alt で一時的にスポイトにしているときも）
 cOv.addEventListener('mousemove', e => {
-  if (!started || currentTool !== 'pick' || selectionMode !== 'none') { hidePickLoupe(); return; }
   if (isEmulatedMouse()) return; // タッチの真似のマウス操作では出さない
+  updateMouseLoupe(e);
+});
+function updateMouseLoupe(e) {
+  const picking = (currentTool === 'pick' && selectionMode === 'none') || altPickActive(e);
+  if (!started || !picking) { hidePickLoupe(); return; }
   const { col, row } = getCell(e);
   showPickLoupe(e.clientX, e.clientY, (dx, dy) => {
     const r = row + dy, c = col + dx;
     if (r < 0 || c < 0 || r >= rows || c >= cols) return undefined;
     return compositeAt(r, c);
   });
-});
+}
 
 // タッチ対応（1本指：描画・選択・図形／2本指：ピンチズーム＋パン）
 // 2本指の操作はキャンバスの周りの余白でも効くよう、キャンバスエリア側で受け取る。
@@ -1162,6 +1242,7 @@ function touchPointerDown(col, row) {
   pushHistory();
   isPainting = true;
   lastCell = {col, row};
+  notePaintPoint(col, row);
   applyToolSingle(col, row);
   drawCells();
 }
@@ -1261,6 +1342,7 @@ function touchPointerMove(col, row) {
   if (lastCell && lastCell.col === col && lastCell.row === row) return;
   applyToolLine(lastCell.col, lastCell.row, col, row);
   lastCell = {col, row};
+  notePaintPoint(col, row);
 }
 
 function touchPointerUp(col, row) {
@@ -3158,12 +3240,13 @@ function setBrushSize(n) {
   brushSize = Math.max(1, Math.min(MAX_BRUSH_SIZE, Math.round(n) || 1));
   brushSlider.value = brushSize;
   brushVal.value = brushSize;
+  updateStatusTool();
 }
 brushSlider.addEventListener('input', () => setBrushSize(parseInt(brushSlider.value)));
 // 数字は入力の途中（空や範囲外）では書き直さず、入力を終えたときに範囲に収める
 brushVal.addEventListener('input', () => {
   const n = parseInt(brushVal.value);
-  if (n >= 1 && n <= MAX_BRUSH_SIZE) { brushSize = n; brushSlider.value = n; }
+  if (n >= 1 && n <= MAX_BRUSH_SIZE) { brushSize = n; brushSlider.value = n; updateStatusTool(); }
 });
 brushVal.addEventListener('change', () => setBrushSize(parseInt(brushVal.value)));
 brushVal.addEventListener('keydown', e => { if (e.key === 'Enter') brushVal.blur(); });
@@ -3187,6 +3270,26 @@ function setTool(t) {
 // 上の2段目に出す設定を、今の道具に合うものに切り替える（出し分けは layout.js の updateOptbar）
 function updateHeaderStatus() {
   if (window.updateOptbar) window.updateOptbar();
+  updateStatusTool();
+}
+
+// 画面下の帯に、今の道具と描画サイズを出す
+const TOOL_NAMES = { pen: 'ペン', fill: '塗り潰し', erase: '消しゴム', pick: 'スポイト', move: '移動', bone: 'ボーン', shape: '図形' };
+const SELECT_NAMES = { range: '範囲を選択', color: '同じ色を選択', flood: '隣接色を選択' };
+const statTool = document.getElementById('stat-tool');
+const statSize = document.getElementById('stat-size');
+function updateStatusTool() {
+  const selecting = selectionMode !== 'none';
+  let name = selecting ? SELECT_NAMES[selectionMode] : TOOL_NAMES[currentTool];
+  if (!selecting && currentTool === 'shape') {
+    // 「⚫ 円」の絵文字を除いて「円」だけにする
+    const opt = document.querySelector(`.shape-opt[data-shape="${shapeType}"][data-fill="${shapeFill ? 1 : 0}"]`);
+    if (opt) name = opt.textContent.trim().replace(/^\S+\s+/, '');
+  }
+  statTool.textContent = name || '—';
+  // 描画サイズが効く道具のときだけ数字を出す
+  const sized = !selecting && (currentTool === 'pen' || currentTool === 'erase' || currentTool === 'shape');
+  statSize.textContent = sized ? brushSize : '—';
 }
 
 function updateCanvasCursor() {
@@ -3223,6 +3326,80 @@ document.addEventListener('keydown', e => {
   if (!tool) return;
   e.preventDefault();
   setTool(tool);
+});
+
+// ── ショートカット一覧 ────────────────────────────────
+// ? キー・ヘルプメニュー・下の帯のボタンで開く。Mac では Ctrl を ⌘、Alt を option と書く。
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const SHORTCUT_GROUPS = [
+  ['道具', [
+    ['Q', 'ペン'], ['W', '塗り潰し'], ['A', '消しゴム'], ['S', 'スポイト'], ['V', '移動'], ['B', 'ボーン'],
+  ]],
+  ['描く', [
+    ['Shift＋クリック', '前に描いたマスから直線を引く'],
+    ['Alt＋クリック', '道具はそのままで色を拾う'],
+  ]],
+  ['編集', [
+    ['Ctrl＋Z', '元に戻す'],
+    [IS_MAC ? 'Ctrl＋Shift＋Z' : 'Ctrl＋Y', 'やり直し'],
+    ['Ctrl＋C ／ X ／ V', 'コピー／切り取り／貼り付け'],
+    ['Ctrl＋A', 'すべて選択'],
+    ['Delete', '選択範囲を消す'],
+    ['矢印キー', '移動ツールで動かす（Shift で10マス）'],
+  ]],
+  ['表示', [
+    ['Ctrl＋ホイール', '拡大・縮小'],
+    ['Ctrl＋＋ ／ Ctrl＋−', '拡大 ／ 縮小'],
+    ['Ctrl＋0', '全体表示'],
+    ['Ctrl＋1', '100%'],
+    ['右ドラッグ', 'キャンバスを動かす'],
+    ['D（押している間）', '描いた絵だけを表示'],
+    ['?', 'この一覧'],
+  ]],
+];
+function shortcutLabel(keys) {
+  if (!IS_MAC) return keys;
+  return keys.replace(/Ctrl/g, '⌘').replace(/Alt/g, 'option').replace(/Shift/g, '⇧');
+}
+const shortcutsModal = document.getElementById('shortcuts-modal');
+(function buildShortcutList() {
+  const body = document.getElementById('shortcuts-body');
+  SHORTCUT_GROUPS.forEach(([title, rows]) => {
+    const sec = document.createElement('section');
+    const h = document.createElement('div');
+    h.className = 'shortcuts-group';
+    h.textContent = title;
+    const dl = document.createElement('dl');
+    rows.forEach(([keys, what]) => {
+      const dt = document.createElement('dt');
+      const kbd = document.createElement('kbd');
+      kbd.textContent = shortcutLabel(keys);
+      dt.appendChild(kbd);
+      const dd = document.createElement('dd');
+      dd.textContent = what;
+      dl.append(dt, dd);
+    });
+    sec.append(h, dl);
+    body.appendChild(sec);
+  });
+})();
+function setShortcutsOpen(open) {
+  shortcutsModal.style.display = open ? 'flex' : 'none';
+  if (open) document.getElementById('btn-shortcuts-close').focus();
+}
+document.getElementById('btn-shortcuts').addEventListener('click', () => setShortcutsOpen(true));
+document.getElementById('btn-menu-shortcuts').addEventListener('click', () => setShortcutsOpen(true));
+document.getElementById('btn-shortcuts-close').addEventListener('click', () => setShortcutsOpen(false));
+shortcutsModal.addEventListener('click', e => { if (e.target === shortcutsModal) setShortcutsOpen(false); });
+document.addEventListener('keydown', e => {
+  if (shortcutsModal.style.display !== 'none') {
+    if (e.key === 'Escape') setShortcutsOpen(false);
+    return;
+  }
+  if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  if (isTypingTarget(e.target)) return;
+  e.preventDefault();
+  setShortcutsOpen(true);
 });
 
 // ── 絵の確認モード ────────────────────────────────────
@@ -3728,17 +3905,64 @@ function setZoom(z) {
     c.style.height = (h * zoom) + 'px';
   });
   zoomLabel.textContent = Math.round(zoom * 100) + '%';
+  statZoom.textContent = zoomLabel.textContent;
   updateGridOverlay(); // 1マスの表示サイズが変わるのでグリッド線も追従させる
   updateScrollPadding();
 }
-document.getElementById('btn-zoom-in').addEventListener('click',  () => setZoom(zoom * 1.5));
-document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(zoom / 1.5));
-
-// マウスホイールズーム（カーソル位置を中心に拡縮する）
+// 指定した画面上の点（clientX, clientY）の下にあるマスが、拡大縮小のあとも同じ場所に留まるようにする
 // パディング量がzoomに応じて非線形に変わる（updateScrollPadding参照）ため、
 // スクロール量を比率計算で求めることはできない。ズーム前後で実際に
-// レイアウトされたwrapの画面上の位置を測定し、カーソル直下にあった
-// セル座標がズーム後も同じ画面位置に留まるようスクロール位置を補正する。
+// レイアウトされたwrapの画面上の位置を測定し、スクロール位置を補正する。
+function zoomAround(newZoom, clientX, clientY) {
+  const oldZoom = zoom;
+  const wrapRectBefore = wrap.getBoundingClientRect();
+  // その点の下のセル座標（zoomに依存しない値）を記録
+  const contentX = (clientX - wrapRectBefore.left) / oldZoom;
+  const contentY = (clientY - wrapRectBefore.top) / oldZoom;
+
+  setZoom(newZoom); // zoomは内部でMIN_ZOOM〜MAX_ZOOMにクランプされる
+
+  const wrapRectAfter = wrap.getBoundingClientRect();
+  canvasArea.scrollLeft += wrapRectAfter.left - (clientX - contentX * zoom);
+  canvasArea.scrollTop  += wrapRectAfter.top - (clientY - contentY * zoom);
+}
+// ボタンやキーでの拡大縮小は、見えている範囲の真ん中を中心にする
+function zoomAroundCenter(newZoom) {
+  const r = canvasArea.getBoundingClientRect();
+  zoomAround(newZoom, r.left + canvasArea.clientWidth / 2, r.top + canvasArea.clientHeight / 2);
+}
+// 全体表示：キャンバス全体が見える大きさにして、真ん中に置く
+function fitAndCenter() {
+  fitCanvasToView();
+  centerCanvas();
+}
+document.getElementById('btn-zoom-in').addEventListener('click',  () => zoomAroundCenter(zoom * 1.5));
+document.getElementById('btn-zoom-out').addEventListener('click', () => zoomAroundCenter(zoom / 1.5));
+document.getElementById('btn-zoom-fit').addEventListener('click', fitAndCenter);
+// 倍率の数字を押すと100%に戻す
+zoomLabel.addEventListener('click', () => zoomAroundCenter(1));
+
+// Ctrl＋0：全体表示／Ctrl＋1：100%／Ctrl＋＋・Ctrl＋−：拡大・縮小（ブラウザ自体の拡大縮小の代わりに効かせる）
+// 日本語キーボードの「＋」は「;」のキーなので、それも拡大として扱う
+const ZOOM_KEYS = {
+  Equal: 'in', Semicolon: 'in', NumpadAdd: 'in',
+  Minus: 'out', NumpadSubtract: 'out',
+  Digit0: 'fit', Numpad0: 'fit',
+  Digit1: 'reset', Numpad1: 'reset',
+};
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || !started) return;
+  if (isTypingTarget(e.target)) return;
+  const act = ZOOM_KEYS[e.code];
+  if (!act) return;
+  e.preventDefault();
+  if (act === 'in') zoomAroundCenter(zoom * 1.5);
+  else if (act === 'out') zoomAroundCenter(zoom / 1.5);
+  else if (act === 'fit') fitAndCenter();
+  else zoomAroundCenter(1);
+});
+
+// マウスホイールズーム（カーソル位置を中心に拡縮する）
 // パソコンのタッチパッドのピンチもCtrl付きのホイールとして届くので、ここで扱う。
 // 定規の上でも効くよう、定規を含むキャンバス全体（canvas-stage）で受け取る。
 document.getElementById('canvas-stage').addEventListener('wheel', e => {
@@ -3755,21 +3979,7 @@ document.getElementById('canvas-stage').addEventListener('wheel', e => {
   e.preventDefault();
   const delta = -e.deltaY * (e.deltaMode === 1 ? 20 : 1);
   const factor = 1 + Math.min(Math.abs(delta) * 0.002, 0.15);
-  const newZoom = delta > 0 ? zoom * factor : zoom / factor;
-
-  const oldZoom = zoom;
-  const wrapRectBefore = wrap.getBoundingClientRect();
-  // カーソル直下のセル座標（zoomに依存しない値）を記録
-  const contentX = (e.clientX - wrapRectBefore.left) / oldZoom;
-  const contentY = (e.clientY - wrapRectBefore.top) / oldZoom;
-
-  setZoom(newZoom); // zoomは内部でMIN_ZOOM〜MAX_ZOOMにクランプされる
-
-  const wrapRectAfter = wrap.getBoundingClientRect();
-  const desiredLeft = e.clientX - contentX * zoom;
-  const desiredTop = e.clientY - contentY * zoom;
-  canvasArea.scrollLeft += wrapRectAfter.left - desiredLeft;
-  canvasArea.scrollTop  += wrapRectAfter.top - desiredTop;
+  zoomAround(delta > 0 ? zoom * factor : zoom / factor, e.clientX, e.clientY);
 }, {passive: false});
 
 // ── 右クリックドラッグでパン ──────────────────────────
@@ -4491,9 +4701,8 @@ function centerCanvas() {
   canvasArea.scrollTop  = padY + ch / 2 - canvasArea.clientHeight / 2;
 }
 
-// タブレットとスマホでは、キャンバスが小さかったり画面からはみ出したりすると描きにくいので、
-// 開いたときに画面いっぱい近くの大きさに合わせて表示する
-function fitsCanvasOnOpen() { return tabletUI || window.innerWidth <= 640; }
+// キャンバスが小さかったり画面からはみ出したりすると描きにくいので、
+// 開いたときは画面いっぱい近くの大きさに合わせて表示する（右下の「全体表示」・Ctrl＋0 も同じ）
 function fitCanvasToView() {
   const {w, h} = canvasSize();
   setZoom(Math.min(canvasArea.clientWidth * 0.9 / w, canvasArea.clientHeight * 0.9 / h));
@@ -4504,7 +4713,7 @@ function startEditor() {
   overlay.style.display = 'none';
   initCells(cols, rows, false);
   resizeCanvases();
-  if (fitsCanvasOnOpen()) fitCanvasToView();
+  fitCanvasToView();
   centerCanvas();
 }
 
@@ -4517,10 +4726,9 @@ document.getElementById('btn-load-img').addEventListener('click', () => {
 
 // ── 新規キャンバス（ファイルメニュー） ─────────────────
 // サイトを開いた直後・「白紙で始める」を押した直後と同じ状態
-// （32×32・単一の空レイヤー・ズーム100%・履歴なし）に戻す。
+// （32×32・単一の空レイヤー・全体表示・履歴なし）に戻す。
 function resetToNewCanvas() {
   initCells(32, 32, false);
-  setZoom(1);
   clearHistory();
   resetChangeTracking();
   clearSelection();
@@ -4528,7 +4736,7 @@ function resetToNewCanvas() {
   resizeCanvases();
   syncSlidersToGrid();
   updatePresetHighlight();
-  if (fitsCanvasOnOpen()) fitCanvasToView();
+  fitCanvasToView();
   centerCanvas();
   if (window.clearCurrentArtwork) window.clearCurrentArtwork();
 }
@@ -4697,7 +4905,7 @@ function loadProjectData(p) {
   resizeCanvases();
   syncSlidersToGrid();
   updateLayerPanel();
-  if (fitsCanvasOnOpen()) fitCanvasToView();
+  fitCanvasToView();
   centerCanvas();
 }
 
