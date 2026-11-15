@@ -153,17 +153,11 @@
   <span class="artwork-chip" id="artwork-chip" style="display:none" title="開いているクラウド作品">📄 <span id="artwork-chip-name"></span></span>
   <!-- 2段目：今の道具の設定（選んでいる道具に合うものだけを出す。出し分けは layout.js） -->
   <div class="optbar" id="optbar">
-    <!-- 今のツールと、描画中のレイヤー -->
-    <span class="status-chip" id="status-chip" style="display:none">
-      <span class="status-tool" id="status-tool"></span>
-      <span class="status-layer" id="status-layer"></span>
-    </span>
-
     <!-- 描画サイズ（ペン・消しゴム・図形） -->
     <div class="opt-group" id="opt-brush">
       <span class="opt-label">サイズ</span>
-      <input type="range" id="brush-slider" min="1" max="10" value="1" step="1" title="描画サイズ（一度に塗る大きさ）">
-      <span class="brush-size-val" id="brush-val">1</span>
+      <input type="range" id="brush-slider" min="1" max="100" value="1" step="1" title="描画サイズ（一度に塗る大きさ。1〜100マス）">
+      <input type="number" class="size-input" id="brush-val" min="1" max="100" value="1" title="描画サイズを数字で入れる（1〜100）" aria-label="描画サイズ">
     </div>
 
     <!-- 描画スタイル（ペン・消しゴム） -->

@@ -3150,13 +3150,23 @@ document.querySelectorAll('.move-target-btn').forEach(b => {
 });
 
 // ── 描画サイズ ────────────────────────────────────────
+// つまみでも、数字を直接入れても変えられる（1〜MAX_BRUSH_SIZE マス）
+const MAX_BRUSH_SIZE = 100;
 const brushSlider = document.getElementById('brush-slider');
 const brushVal = document.getElementById('brush-val');
-brushSlider.addEventListener('input', () => {
-  brushSize = parseInt(brushSlider.value);
-  brushVal.textContent = brushSize;
-  updateHeaderStatus();
+function setBrushSize(n) {
+  brushSize = Math.max(1, Math.min(MAX_BRUSH_SIZE, Math.round(n) || 1));
+  brushSlider.value = brushSize;
+  brushVal.value = brushSize;
+}
+brushSlider.addEventListener('input', () => setBrushSize(parseInt(brushSlider.value)));
+// 数字は入力の途中（空や範囲外）では書き直さず、入力を終えたときに範囲に収める
+brushVal.addEventListener('input', () => {
+  const n = parseInt(brushVal.value);
+  if (n >= 1 && n <= MAX_BRUSH_SIZE) { brushSize = n; brushSlider.value = n; }
 });
+brushVal.addEventListener('change', () => setBrushSize(parseInt(brushVal.value)));
+brushVal.addEventListener('keydown', e => { if (e.key === 'Enter') brushVal.blur(); });
 
 // ── ツール選択 ────────────────────────────────────────
 function setTool(t) {
@@ -3172,46 +3182,11 @@ function setTool(t) {
   if (window.onToolChanged) window.onToolChanged(t); // ボーン（bones.js）の表示を切り替える
 }
 
-// ── ヘッダーの状態表示（描画中のレイヤーと今のツール） ──
-// ツール・選択モード・図形・ブラシサイズ・レイヤーが変わるたびに呼ぶ。
-const statusChip = document.getElementById('status-chip');
-const statusLayer = document.getElementById('status-layer');
-const statusTool = document.getElementById('status-tool');
-const TOOL_LABELS = {
-  pen: '✏️ ペン', fill: '🪣 塗り潰し', erase: '🧹 消しゴム', pick: '💉 スポイト', move: '✥ 移動', bone: '🦴 ボーン',
-};
-const DRAW_STYLE_LABELS = { col: '縦', row: '横' };
-
-// 今キャンバスをクリックしたときに起きることを文字にする
-function currentToolLabel() {
-  // 選択ボタンを押した直後は、ツールより選択が優先される
-  if (selectionMode === 'range') return `📐 範囲選択（${rangeSelectMode === 'free' ? '自分で指定' : '四角で囲う'}）`;
-  if (selectionMode === 'color') return '🎨 色で選択';
-  if (selectionMode === 'flood') return '💧 隣接色で選択';
-  if (currentTool === 'shape') {
-    const opt = document.querySelector(`.shape-opt[data-shape="${shapeType}"][data-fill="${shapeFill ? 1 : 0}"]`);
-    return opt ? opt.textContent.trim() : '図形';
-  }
-  let label = TOOL_LABELS[currentTool] || currentTool;
-  const details = [];
-  if (currentTool === 'move' && moveAllLayers) details.push('全レイヤー');
-  if ((currentTool === 'pen' || currentTool === 'erase') && DRAW_STYLE_LABELS[drawStyle]) details.push(DRAW_STYLE_LABELS[drawStyle]);
-  if ((currentTool === 'pen' || currentTool === 'erase') && brushSize > 1) details.push(`サイズ${brushSize}`);
-  if (details.length) label += `（${details.join('・')}）`;
-  return label;
-}
-
+// ── 今の道具の設定の更新 ──
+// ツール・選択モード・図形・レイヤーが変わるたびに呼ぶ。
+// 上の2段目に出す設定を、今の道具に合うものに切り替える（出し分けは layout.js の updateOptbar）
 function updateHeaderStatus() {
-  statusChip.style.display = started ? '' : 'none';
-  const layer = layers[activeLayerIndex];
-  if (!layer) return;
-  const marks = (layer.locked ? '🔒' : '') + (layer.visible ? '' : '（非表示）');
-  statusLayer.textContent = `🗂 ${layer.name}${marks}`;
-  statusLayer.title = `描画中のレイヤー: ${layer.name}${layer.locked ? '（ロック中）' : ''}${layer.visible ? '' : '（非表示）'}`;
-  const tool = currentToolLabel();
-  statusTool.textContent = tool;
-  statusTool.title = `今のツール: ${tool}`;
-  if (window.updateOptbar) window.updateOptbar(); // 道具の設定の欄も今の道具に合わせる
+  if (window.updateOptbar) window.updateOptbar();
 }
 
 function updateCanvasCursor() {

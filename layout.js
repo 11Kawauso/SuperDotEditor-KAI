@@ -146,7 +146,20 @@
     show(optGroups.move, !selecting && tool === 'move');
     show(optGroups.bone, !selecting && tool === 'bone');
     show(optGroups.select, selecting || !!selectionMask || !!clipboard);
-    optHint.textContent = (selecting ? HINTS[selectionMode] : HINTS[tool]) || '';
+    // 出している欄のうち先頭のものは、左の区切り線を付けない
+    let first = true;
+    Object.values(optGroups).forEach(group => {
+      const visible = group.style.display !== 'none';
+      group.classList.toggle('opt-first', visible && first);
+      if (visible) first = false;
+    });
+    let hint = (selecting ? HINTS[selectionMode] : HINTS[tool]) || '';
+    if (!selecting && tool === 'shape') {
+      // 図形は、どの図形を選んでいるかも添える
+      const shape = document.querySelector(`.shape-opt[data-shape="${shapeType}"][data-fill="${shapeFill ? 1 : 0}"]`);
+      if (shape) hint = `${shape.textContent.trim()}：${hint}`;
+    }
+    optHint.textContent = hint;
     btnRailSelect.classList.toggle('active', selecting);
     rail.classList.toggle('selecting', selecting);
   };

@@ -1453,7 +1453,6 @@ body.art-preview .ref-window,
 body.art-preview .color-history,
 body.art-preview .color-history *, /* 色の丸は個別にvisibilityを指定しているので、それごと隠す */
 body.art-preview .zoom-controls,
-body.art-preview .status-chip,
 body.art-preview .ruler,
 body.art-preview .ruler-corner,
 body.art-preview #canvas-bg,
@@ -1477,31 +1476,6 @@ body.art-preview #btn-art-preview { visibility: visible !important; }
 }
 #btn-art-preview { touch-action: none; }
 
-/* 描画中のレイヤーと今のツール。幅が足りないときは他のボタンを押し出さずに「…」で縮む */
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 1 auto;
-  min-width: 0;
-  font-size: 11px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.status-chip > span {
-  padding: 3px 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.status-layer {
-  flex: 0 1 auto;
-  max-width: 160px;
-  color: var(--text-muted);
-  border-left: 1px solid var(--border);
-}
-.status-tool { flex: 0 1 auto; color: var(--text); font-weight: 500; }
 .artwork-chip #artwork-chip-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2072,7 +2046,6 @@ header > .optbar {
   touch-action: pan-x;
 }
 .optbar::-webkit-scrollbar { display: none; }
-.optbar .status-chip { flex-shrink: 0; }
 .opt-group {
   display: flex;
   align-items: center;
@@ -2090,8 +2063,9 @@ header > .optbar {
   font-size: 11px;
 }
 .optbar .detect-line-label { margin-top: 0; font-size: 11px; }
-#opt-brush input[type=range] { width: 96px; accent-color: var(--accent); }
-#opt-brush .brush-size-val { min-width: 14px; }
+.opt-group.opt-first { padding-left: 0; border-left: none; }
+#opt-brush input[type=range] { width: 130px; accent-color: var(--accent); }
+#opt-brush .size-input { width: 40px; height: 22px; font-size: 11px; }
 .bone-mode-btn.active {
   background: var(--accent);
   color: #fff;
@@ -2105,9 +2079,6 @@ header > .optbar {
   font-size: 11px;
   color: var(--text-muted);
 }
-/* 右のパネルにレイヤーが見えている間は、レイヤー名を重ねて出さない */
-body.dock-open .status-layer { display: none; }
-
 /* ── 中の段：道具バー・キャンバス・右のパネル ── */
 .app {
   flex: 1;
@@ -2400,7 +2371,9 @@ body.dock-open .dock { display: flex; }
   #btn-dock-toggle { width: 32px; height: 28px; }
   .optbar button { height: 26px; font-size: 12px; }
   .opt-group { padding-left: 8px; }
-  .opt-hint { display: none; }
+  /* 幅が狭いので、見出しの文字を省いてつまみを短くする */
+  .opt-label { display: none; }
+  #opt-brush input[type=range] { width: 76px; }
 
   .app {
     grid-template-columns: minmax(0, 1fr);
