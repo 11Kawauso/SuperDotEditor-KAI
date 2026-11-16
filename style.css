@@ -2038,7 +2038,7 @@ body.tetris-plain #canvas-wrap { background: #ffffff; }
 
 /* ══════════════════════════════════════════════════════
    画面の並び
-   上：ヘッダー2段（1段目にメニューと元に戻すなど、2段目に今の道具の設定）
+   上：ヘッダー2段（1段目にメニュー、2段目に元に戻す・やり直しと今の道具の設定）
    中：左に道具バー・中央にキャンバス・右に色とレイヤーのパネル
    下：コマの一覧（出しているときだけ）とステータスバー
    縦向きのタブレットでは右のパネルを下に、スマホでは道具バーを下に置いて
@@ -2179,6 +2179,9 @@ header > .optbar {
 }
 .optbar .detect-line-label { margin-top: 0; font-size: 11px; }
 .opt-group.opt-first { padding-left: 0; border-left: none; }
+/* 2段目の左端の 元に戻す・やり直し は、矢印が小さくならないよう文字を大きめにする */
+.optbar #btn-undo,
+.optbar #btn-redo { font-size: 14px; }
 #opt-brush input[type=range] { width: 130px; accent-color: var(--accent); }
 #opt-brush .size-input { width: 40px; height: 22px; font-size: 11px; }
 .bone-mode-btn.active {
@@ -2481,11 +2484,13 @@ body.dock-open .dock { display: flex; }
     padding-left: 6px;
     border-left: 1px solid var(--border);
   }
-  #btn-undo,
-  #btn-redo,
   #btn-dock-toggle { width: 32px; height: 28px; }
+  /* 2段目に描き方（通常・縦・横）まで入るよう、元に戻す・やり直しと区切りを少し詰める */
+  .optbar #btn-undo,
+  .optbar #btn-redo { width: 28px; height: 28px; }
+  header > .optbar { gap: 6px; }
   .optbar button { height: 26px; font-size: 12px; }
-  .opt-group { padding-left: 8px; }
+  .opt-group { padding-left: 6px; }
   /* 幅が狭いので、見出しの文字を省いてつまみを短くする */
   .opt-label { display: none; }
   #opt-brush input[type=range] { width: 76px; }

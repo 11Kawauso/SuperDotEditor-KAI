@@ -4026,6 +4026,8 @@ document.addEventListener('mouseup', e => {
 canvasArea.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── クリア ────────────────────────────────────────────
+// 「編集」メニューの「今のレイヤーをクリア」と、上の2段目の「レイヤーをクリア」
+document.getElementById('btn-opt-clear').addEventListener('click', () => document.getElementById('btn-clear').click());
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!started || activeLayerLocked()) return;
   pushHistory();

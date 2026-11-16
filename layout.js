@@ -116,6 +116,7 @@
 
   // ── 今の道具の設定の出し分け ──
   const optGroups = {
+    history: $('opt-history'), // 元に戻す・やり直し・レイヤーをクリア（いつも出す）
     brush: $('opt-brush'),
     style: $('draw-style-section'),
     move: $('move-target-section'),
@@ -141,6 +142,7 @@
     const tool = currentTool;
     const drawing = tool === 'pen' || tool === 'erase';
     const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+    show(optGroups.history, true);
     show(optGroups.brush, !selecting && (drawing || tool === 'shape'));
     show(optGroups.style, !selecting && drawing);
     show(optGroups.move, !selecting && tool === 'move');
