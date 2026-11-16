@@ -38,6 +38,10 @@ let lastPaintPoint = null;
 let shiftHeld = false;
 let altHeld = false;
 let started = false;
+// 市松模様（透明の目印）の四角1つが何マス分か。このブラウザに覚えておく
+const CHECKER_SIZE_KEY = 'pixelart-checker-size';
+let checkerSize = 1;
+try { checkerSize = Math.max(1, Math.min(64, parseInt(localStorage.getItem(CHECKER_SIZE_KEY), 10) || 1)); } catch (err) { /* 読めなければ1マス */ }
 let brushSize = 1;
 let drawStyle = 'normal';
 let detectLine = false;
@@ -296,10 +300,11 @@ function drawBg() {
   const img = sctx.createImageData(cols, rows);
   const buf = new Uint32Array(img.data.buffer);
   const light = 0xffeeeeee, dark = 0xffcccccc; // ABGR（グレーなので並び順は不問）
+  const n = checkerSize; // 四角1つが何マス分か（「表示」メニューで変えられる）
   let i = 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++, i++) {
-      buf[i] = (r + c) % 2 === 0 ? dark : light;
+      buf[i] = (Math.floor(r / n) + Math.floor(c / n)) % 2 === 0 ? dark : light;
     }
   }
   sctx.putImageData(img, 0, 0);
@@ -4806,14 +4811,66 @@ document.getElementById('show-checker').addEventListener('change', e => {
   cBg.style.visibility = e.target.checked ? 'visible' : 'hidden';
 });
 
-// ── 背景色切替 ────────────────────────────────────────
-document.querySelectorAll('.bg-btn').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('.bg-btn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    canvasArea.style.background = b.dataset.bg;
-  });
+// ── 市松模様の大きさ（「表示」メニュー） ───────────────
+const checkerSizeInput = document.getElementById('checker-size');
+checkerSizeInput.value = checkerSize;
+function setCheckerSize(n) {
+  checkerSize = Math.max(1, Math.min(64, Math.round(n) || 1));
+  drawBg();
+  try { localStorage.setItem(CHECKER_SIZE_KEY, String(checkerSize)); } catch (err) { /* 覚えられなくても変えられる */ }
+}
+// 入力の途中（空や範囲外）では書き直さず、入れ終えたときに範囲に収める
+checkerSizeInput.addEventListener('input', () => {
+  const n = parseInt(checkerSizeInput.value, 10);
+  if (n >= 1 && n <= 64) setCheckerSize(n);
 });
+checkerSizeInput.addEventListener('change', () => {
+  setCheckerSize(parseInt(checkerSizeInput.value, 10));
+  checkerSizeInput.value = checkerSize;
+});
+checkerSizeInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkerSizeInput.blur(); });
+
+// ── 周りの色（「表示」メニュー） ──────────────────────
+// 白・灰・黒のほか、好きな色も選べる。選んだ色はこのブラウザに覚えておく
+const SURROUND_KEY = 'pixelart-surround';
+const bgCustom = document.getElementById('bg-custom');
+const bgCustomColor = document.getElementById('bg-custom-color');
+// color: '#rrggbb'、custom: 好きな色として選んだか
+function setSurroundColor(color, custom, remember = true) {
+  document.querySelectorAll('.bg-btn').forEach(x => {
+    x.classList.toggle('active', custom ? x === bgCustom : x.dataset.bg === color);
+  });
+  if (custom) setCustomSwatch(color);
+  canvasArea.style.background = color;
+  if (remember) {
+    // 白などに戻しても、好きな色の丸には前に選んだ色を残しておく
+    const customColor = bgCustom.classList.contains('chosen') ? bgCustomColor.value : null;
+    try { localStorage.setItem(SURROUND_KEY, JSON.stringify({ color, custom, customColor })); } catch (err) { /* 覚えられなくても変えられる */ }
+  }
+}
+// 好きな色の丸を、その色で塗る
+function setCustomSwatch(color) {
+  bgCustom.classList.add('chosen');
+  bgCustom.style.setProperty('--custom-bg', color);
+  bgCustomColor.value = color;
+}
+document.querySelectorAll('.bg-btn[data-bg]').forEach(b => {
+  b.addEventListener('click', () => setSurroundColor(b.dataset.bg, false));
+});
+// 色を選んでいる間も、その場で周りの色を変える
+bgCustomColor.addEventListener('input', () => setSurroundColor(bgCustomColor.value, true));
+// 前に好きな色を選んでいれば、押したときにまずその色に戻す（色を選ぶ画面はそのまま出る）
+bgCustom.addEventListener('click', () => {
+  if (bgCustom.classList.contains('chosen')) setSurroundColor(bgCustomColor.value, true);
+});
+try {
+  const saved = JSON.parse(localStorage.getItem(SURROUND_KEY));
+  if (saved && /^#[0-9a-f]{6}$/i.test(saved.customColor || '')) setCustomSwatch(saved.customColor);
+  if (saved && /^#[0-9a-f]{6}$/i.test(saved.color)) {
+    if (saved.custom) setSurroundColor(saved.color, true, false);
+    else setSurroundColor(saved.color, false, false);
+  }
+} catch (err) { /* 読めなければ白のまま */ }
 
 // ── クラウド保存用のシリアライズ（cloud.jsから利用） ──
 // 保存容量・転送量を抑えるため、各レイヤーのセルは

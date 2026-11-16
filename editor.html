@@ -137,12 +137,18 @@
         <label class="menu-check"><input type="checkbox" id="show-rulers" checked> 定規</label>
         <label class="menu-check" title="マス数が偶数なら真ん中のマスの境目に線を、奇数なら真ん中の列・行を色付けして表示します"><input type="checkbox" id="show-center-lines" checked> 中心線</label>
         <label class="menu-check" title="透明なところの目印の市松模様を出す・消す"><input type="checkbox" id="show-checker" checked> 市松模様（透明の目印）</label>
+        <div class="menu-row menu-sub-row" title="市松模様の四角1つを、何マス分の大きさにするか（1〜64）">
+          <label for="checker-size">市松模様の大きさ</label>
+          <span class="checker-size"><input type="number" id="checker-size" class="size-input" min="1" max="64" value="1" inputmode="numeric"> マス</span>
+        </div>
         <div class="menu-row" title="キャンバスの周りの色。描いた絵の色は変わりません">
           <span>周りの色</span>
           <div class="bg-switcher">
             <button class="bg-btn active" data-bg="#ffffff" title="白" style="background:#ffffff;"></button>
             <button class="bg-btn" data-bg="#808080" title="灰色" style="background:#808080;"></button>
             <button class="bg-btn" data-bg="#000000" title="黒" style="background:#000000;"></button>
+            <!-- 好きな色（押すと色を選ぶ画面が出る） -->
+            <label class="bg-btn bg-custom" id="bg-custom" title="好きな色を選ぶ"><input type="color" id="bg-custom-color" value="#2f4f6f" aria-label="周りの色を選ぶ"></label>
           </div>
         </div>
         <div class="menu-divider"></div>
