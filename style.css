@@ -37,7 +37,7 @@ header {
   flex-wrap: wrap;
   align-items: center;
   gap: 0 4px;
-  padding: 0 8px;
+  padding: var(--ios-top-gap, 0px) 8px 0;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -2448,7 +2448,7 @@ body.dock-open .dock { display: flex; }
 /* ── スマホ：道具バーは下、右のパネルは下から引き出す ── */
 @media (max-width: 640px) {
   /* 1段目はメニューだけにして、元に戻すなどのボタンは2段目の右端に置く */
-  header { padding: 0 6px; position: relative; }
+  header { padding: var(--ios-top-gap, 0px) 6px 0; position: relative; }
   .menubar,
   .tablet-ui .menubar {
     flex: 0 0 calc(100% + 12px);
@@ -2464,7 +2464,7 @@ body.dock-open .dock { display: flex; }
   }
   /* メニューの中身は、どれも画面の左端から開く（右のほうのメニューがはみ出さないように） */
   .menubar .menu { position: static; }
-  .menu-dropdown { top: 32px; left: 6px; max-width: calc(100vw - 12px); }
+  .menu-dropdown { top: calc(32px + var(--ios-top-gap, 0px)); left: 6px; max-width: calc(100vw - 12px); }
   .menu-dropdown button { height: 34px; }
   .artwork-chip { order: 9; max-width: 80px; }
   header > .optbar {
@@ -2567,3 +2567,9 @@ body.dock-open .dock { display: flex; }
   .confirm-modal.modal-side,
   body.dock-open .confirm-modal.modal-side { justify-content: center; padding-right: 0; }
 }
+
+/* ── iPad・iPhone のホーム画面のアプリ ──
+   iPadOS 26 以降は、画面の上に OS のすりガラスの帯が重なって、その下（メニューの段）がぼける。
+   ページからは消せないので、ヘッダーの上をこの分だけ空けて、メニューを帯の下に出す。
+   空けた所はヘッダーと同じ白なので、ぼけても目立たない。 */
+html.ios-standalone { --ios-top-gap: 40px; }

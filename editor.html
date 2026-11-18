@@ -17,6 +17,10 @@
   // デスクトップアプリ（desktop フォルダの Electron）の中で開いているとき。
   // ログイン・クラウド保存・PEPORIS など、アプリでは使わない物を隠す（style.css の .desktop-app）
   if (window.desktopApi) document.documentElement.classList.add('desktop-app');
+  // iPad・iPhone のホーム画面に追加したアプリとして開いているとき。
+  // iPadOS 26 以降は、画面のいちばん上に OS がすりガラスの帯を重ねて、その下の物をぼかしてしまう
+  // （ページからは消せない）。上を少し空けて、メニューがぼけないようにする（style.css の .ios-standalone）
+  if (navigator.standalone === true) document.documentElement.classList.add('ios-standalone');
   // ホーム画面のテトリスボタン（editor.html?tetris）から来たときは、エディタの画面を
   // 一瞬も見せずにテトリス画面にするため、準備ができるまでページ全体を隠しておく（tetris.jsが外す）
   if (new URLSearchParams(location.search).has('tetris')) document.documentElement.classList.add('tetris-direct');
