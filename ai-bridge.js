@@ -164,7 +164,10 @@
       fps: animFps,
       currentColor,
       customPalette: customColors.filter(Boolean),
-      note: 'x = column, y = row, 0-based from the top-left. Layer index 0 is the bottom layer.',
+      // デスクトップアプリでは、ギャラリーの保存先を教える（save_project でここに保存すると、ギャラリーに出る）
+      ...(window.desktopApi ? { galleryFolder: window.desktopApi.works.folder } : {}),
+      note: 'x = column, y = row, 0-based from the top-left. Layer index 0 is the bottom layer.'
+        + (window.desktopApi ? ' Project files saved with save_project into galleryFolder appear in the app\'s gallery.' : ''),
     };
   }
 
@@ -374,6 +377,38 @@
       if (!history.length) return { text: 'Nothing to undo.' };
       undo();
       return { text: 'Undid the last change.' };
+    },
+
+    // 作品ファイル（「作品ファイルとして保存」と同じ中身）を作る。ファイルへの保存は mcp/server.js が行う。
+    // ギャラリーの一覧に出す小さな絵（等倍の PNG）も添える
+    get_project: () => ({
+      file: { app: window.PROJECT_FILE_APP, format: 1, project: serializeProject() },
+      thumb: projectThumbnailDataURL().split(',')[1],
+      cols, rows, frames: frames.length, layers: layers.length,
+    }),
+    // mcp/server.js が作品ファイルを書けたら呼ぶ（閉じるときの「保存していない変更があります」を出さないようにする）
+    project_saved: ({ name }) => {
+      markProjectSaved();
+      showToast(`AI が「${name}」に保存しました`);
+      return { text: 'ok' };
+    },
+    // 作品ファイルを開く（中身は mcp/server.js が読んで渡す）。開く前の絵は「元に戻す」で戻せる
+    load_project: ({ file, name }) => {
+      const project = sanitizeProjectFile(file);
+      if (!project) throw new Error('This is not a SuperDotEditor-KAI project file.');
+      pushFramesHistory(); // 今の絵（大きさ・コマ・ボーンも）を「元に戻す」に積む
+      const keep = history; // loadProjectData は履歴を消すので、取っておいて戻す
+      loadProjectData(project);
+      history = keep;
+      redoStack = [];
+      updateHistoryButtons();
+      // クラウドやギャラリーの作品との紐付けは外す（上書き保存の先が別の作品にならないように）
+      if (window.clearCurrentArtwork) window.clearCurrentArtwork();
+      if (window.clearLocalWork) window.clearLocalWork();
+      markProjectSaved();
+      showToast(`AI が「${name}」を開きました（「元に戻す」で前の絵に戻せます）`);
+      return { text: `Opened "${name}": ${cols}x${rows}, ${frames.length} frame(s), ${layers.length} layer(s) in the current frame. `
+        + 'The previous canvas can be restored with undo.' };
     },
 
     // 書き出し用の PNG を作る（ファイルへの保存は mcp/server.js が行う）

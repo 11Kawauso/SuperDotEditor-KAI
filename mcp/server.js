@@ -18,12 +18,14 @@ const path = require('path');
 
 const PORT = Number(process.env.PIXELART_BRIDGE_PORT) || 17321;
 // エディタとして接続を受け付けるページ（ほかのサイトがつないで AI に偽の答えを返せないように）
-const ALLOWED_ORIGINS = (process.env.PIXELART_ALLOWED_ORIGINS || 'https://11kawauso.github.io').split(',');
+// （app://editor はデスクトップアプリ。desktop/main.js がこの名前でページを開く）
+const ALLOWED_ORIGINS = (process.env.PIXELART_ALLOWED_ORIGINS || 'https://11kawauso.github.io,app://editor').split(',');
 const isAllowedOrigin = origin => ALLOWED_ORIGINS.includes(origin)
   || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
 const REQUEST_TIMEOUT_MS = 30000;
-const SERVER_VERSION = '1.2.0';
-// export_png で保存してよいフォルダ（この中だけに書く）。初期値はユーザーのフォルダ全体
+const SERVER_VERSION = '1.3.0';
+// export_png・save_project で保存してよいフォルダ（この中だけに書く。open_project もこの中だけを読む）。
+// 初期値はユーザーのフォルダ全体
 const EXPORT_ROOTS = (process.env.PIXELART_EXPORT_DIRS || os.homedir())
   .split(path.delimiter).filter(Boolean).map(p => path.resolve(p));
 
@@ -58,7 +60,13 @@ Game assets (Unity, Godot, etc.):
 - For animations use frames "all" + layout "sheet": the frames are placed left to right, and a .json next to the PNG
   records frameWidth/frameHeight, the frame count and each frame's duration in ms.
 - In Unity import the sheet with Texture Type = Sprite, Sprite Mode = Multiple, Filter Mode = Point (no filter),
-  Compression = None, then slice it by cell size (frameWidth x frameHeight). Pixels Per Unit = the size of one tile.`;
+  Compression = None, then slice it by cell size (frameWidth x frameHeight). Pixels Per Unit = the size of one tile.
+
+Saving the work itself (to edit it again later):
+- save_project writes a project file (.dotkai.json) with every layer, frame and bone. The user opens it with
+  File > 作品ファイルを開く. In the desktop app, get_canvas_info shows galleryFolder: save there to put it in the gallery.
+- It never overwrites an existing file unless overwrite is true. Ask the user before overwriting.
+- open_project loads a project file to continue it. It replaces the canvas; the user can get the previous one back with undo.`;
 
 // ── 道具の一覧（AI に見せる説明と、受け取る値の形） ──
 const color = { type: 'string', description: 'Color as #rrggbb' };
@@ -232,13 +240,41 @@ const TOOLS = [
       required: ['path'],
     },
   },
+  {
+    name: 'save_project',
+    description: 'Save the artwork as a project file (.dotkai.json) with all layers, animation frames and bones, '
+      + 'so it can be opened and edited again later (the same file as the editor\'s "作品ファイルとして保存"). '
+      + 'In the desktop app, saving into galleryFolder (see get_canvas_info) makes it appear in the app\'s gallery. '
+      + 'An existing file is not overwritten unless overwrite is true; ask the user before overwriting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path of the file to write, ending with .dotkai.json' },
+        overwrite: { type: 'boolean', description: 'Replace an existing file (default false)' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'open_project',
+    description: 'Open a project file (.dotkai.json) in the editor to continue working on it. '
+      + 'It replaces the whole canvas (size, layers, frames, bones); the user can restore the previous canvas with undo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path of the .dotkai.json file' },
+      },
+      required: ['path'],
+    },
+  },
 ];
 
 // ── export_png：エディタが作った PNG を、決めたフォルダの中にだけ保存する ──
-function checkExportPath(p) {
-  if (typeof p !== 'string' || !path.isAbsolute(p)) throw new Error('path must be an absolute file path, e.g. C:\\Game\\Assets\\Sprites\\slash.png');
+// ext：ファイルの終わり（'.png' や '.dotkai.json'）。決めたフォルダ（EXPORT_ROOTS）の外なら断る
+function checkExportPath(p, ext = '.png', example = 'C:\\Game\\Assets\\Sprites\\slash.png') {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) throw new Error(`path must be an absolute file path, e.g. ${example}`);
   const full = path.resolve(p);
-  if (path.extname(full).toLowerCase() !== '.png') throw new Error('path must end with .png');
+  if (!full.toLowerCase().endsWith(ext)) throw new Error(`path must end with ${ext}`);
   // Windows はフォルダ名の大文字・小文字を区別しないので、そろえてから比べる
   const norm = p2 => (process.platform === 'win32' ? p2.toLowerCase() : p2);
   const inside = EXPORT_ROOTS.some(root => {
@@ -297,6 +333,46 @@ async function exportPng(args) {
       + `frame ${result.frameWidth}x${result.frameHeight}px, ${result.frameCount} frame(s)`
       + (layout === 'sheet' && result.frameCount > 1 ? `, sheet ${result.columns} column(s) x ${result.rows} row(s)` : ''),
   };
+}
+
+// ── save_project / open_project：作品ファイル（.dotkai.json）を保存する・開く ──
+const PROJECT_EXT = '.dotkai.json';
+const PROJECT_EXAMPLE = 'C:\\Users\\me\\Documents\\SuperDotEditor\\slime.dotkai.json';
+const MAX_PROJECT_BYTES = 64 * 1024 * 1024;
+const projectName = full => path.basename(full).slice(0, -PROJECT_EXT.length);
+
+async function saveProject(args) {
+  const full = checkExportPath(args.path, PROJECT_EXT, PROJECT_EXAMPLE);
+  if (!args.overwrite && fs.existsSync(full)) {
+    throw new Error(`This file already exists (use overwrite: true to replace it, after asking the user): ${full}`);
+  }
+  const result = await callEditor('get_project', {});
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  // 途中で止まっても壊れたファイルが残らないよう、別名で書いてから置き換える
+  const tmp = full + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(result.file));
+  fs.renameSync(tmp, full);
+  // デスクトップアプリのギャラリーのフォルダ（.thumbs がある）なら、一覧に出す小さな絵も置く
+  const thumbsDir = path.join(path.dirname(full), '.thumbs');
+  if (result.thumb && fs.existsSync(thumbsDir)) {
+    try {
+      fs.writeFileSync(path.join(thumbsDir, projectName(full) + '.png'), Buffer.from(result.thumb, 'base64'));
+    } catch { /* 絵が置けなくても作品は保存できている */ }
+  }
+  await callEditor('project_saved', { name: projectName(full) }).catch(() => {});
+  return {
+    text: `Saved project file: ${full}\n${result.cols}x${result.rows}, ${result.frames} frame(s), ${result.layers} layer(s) in the current frame`,
+  };
+}
+
+async function openProject(args) {
+  const full = checkExportPath(args.path, PROJECT_EXT, PROJECT_EXAMPLE);
+  if (!fs.existsSync(full)) throw new Error(`File not found: ${full}`);
+  if (fs.statSync(full).size > MAX_PROJECT_BYTES) throw new Error('The file is too large to open.');
+  let file;
+  try { file = JSON.parse(fs.readFileSync(full, 'utf8')); } catch { throw new Error('This file is not valid JSON.'); }
+  if (!file || file.app !== 'SuperDotEditor-KAI') throw new Error('This is not a SuperDotEditor-KAI project file.');
+  return callEditor('load_project', { file, name: projectName(full) });
 }
 
 // ── WebSocket（エディタとの通信）。Node.js だけで動くよう、必要な分だけ自前で書く ──
@@ -480,7 +556,9 @@ function replyError(id, code, message) { process.stdout.write(JSON.stringify({ j
 
 async function handleToolCall(name, args) {
   if (!TOOLS.some(t => t.name === name)) throw new Error(`Unknown tool: ${name}`);
-  const result = name === 'export_png' ? await exportPng(args || {}) : await callEditor(name, args || {});
+  // ファイルを読み書きする道具は、ここ（パソコンの側）で処理する
+  const LOCAL = { export_png: exportPng, save_project: saveProject, open_project: openProject };
+  const result = LOCAL[name] ? await LOCAL[name](args || {}) : await callEditor(name, args || {});
   // エディタからの答えを MCP の形にする（画像はそのまま画像として渡す）
   const content = [];
   if (result && result.image) content.push({ type: 'image', data: result.image, mimeType: 'image/png' });

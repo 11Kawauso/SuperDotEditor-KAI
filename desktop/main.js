@@ -8,6 +8,10 @@ const fs = require('fs/promises');
 const { pathToFileURL } = require('url');
 const { execFile } = require('child_process');
 
+// 動作を確かめるとき用：SUPERDOT_USER_DATA を指定すると、自動保存や設定をそのフォルダに置く
+// （入れてあるアプリの「前回の続きから」などを上書きしないように）
+if (process.env.SUPERDOT_USER_DATA) app.setPath('userData', process.env.SUPERDOT_USER_DATA);
+
 // サイトのファイルの場所：組み立てたアプリでは resources\web、開発中はこのフォルダの1つ上（リポジトリ）
 const WEB_ROOT = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.join(__dirname, '..');
 // 作品の保存先
