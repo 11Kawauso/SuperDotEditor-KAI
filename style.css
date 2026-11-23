@@ -1028,7 +1028,20 @@ input, select, textarea {
 .float-palette.front { z-index: 57; }
 .float-palette .ref-header { cursor: move; user-select: none; }
 .float-palette-body { padding: 10px; }
-.float-palette-body .palette-grid { margin-bottom: 0; }
+.float-palette-body .palette-grid {
+  margin-bottom: 0;
+  /* 小窓を細くしても列が縮むよう、マスの最小幅を0にする（「＋」の文字幅で押し広げられないように） */
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  container-type: inline-size; /* 中の「＋」の大きさを、小窓の幅に合わせる */
+}
+.float-palette-body .swatch-empty {
+  min-width: 0;
+  overflow: hidden;
+  font-size: clamp(9px, 7cqi, 16px);
+}
+/* 削除・全削除・書出・読込は、入りきらないときは2段に折り返す */
+.float-palette-body .custom-palette-actions { flex-wrap: wrap; }
+.float-palette-body .custom-palette-actions button { flex: 1 1 56px; min-width: 0; padding: 0 4px; }
 .float-palette-body .color-wheel-open { margin: 8px 0 0; }
 .float-palette-resize {
   position: absolute;
