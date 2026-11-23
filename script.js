@@ -2142,6 +2142,8 @@ colorDots.forEach((dot, i) => {
 
 function setColor(hex) {
   currentColor = hex;
+  // ほかの色に変わったら、カスタムカラーの「選んでいる枠」は解除する
+  if (selectedCustomIndex >= 0 && customColors[selectedCustomIndex] !== hex) selectedCustomIndex = -1;
   pushColorHistory(hex);
   document.querySelectorAll('.swatch').forEach(s => {
     s.classList.toggle('selected', s.style.background === hexToRgb(hex) || s.style.background === hex);
@@ -2159,6 +2161,8 @@ function hexToRgb(hex) {
 
 // ── カスタムカラーパレット ──────────────────────────
 const CUSTOM_PALETTE_SIZE = 48;
+// 最後に押して選んだカスタムカラーの枠。選んでいる枠をもう一度押すと、その枠の色を変えられる
+let selectedCustomIndex = -1;
 const customPaletteGrid = document.getElementById('custom-palette');
 const customColorPicker = document.getElementById('custom-color-picker');
 const btnDeleteMode = document.getElementById('btn-delete-mode');
@@ -2197,13 +2201,17 @@ function buildCustomPalette() {
       const s = document.createElement('div');
       s.className = 'swatch' + (deleteMode ? ' delete-target' : '');
       s.style.background = color;
-      s.title = color;
+      s.title = `${color}（選んでいるときにもう一度押すと、この枠の色を変えられます）`;
       s.addEventListener('click', () => {
         if (deleteMode) {
           customColors[i] = null;
+          if (selectedCustomIndex === i) selectedCustomIndex = -1;
           buildCustomPalette();
+        } else if (selectedCustomIndex === i && currentColor === color) {
+          openColorPicker('custom', i, color); // 選んでいる枠をもう一度押した → この枠の色を変える
         } else {
           setColor(color);
+          selectedCustomIndex = i;
         }
       });
       customPaletteGrid.appendChild(s);
@@ -2439,6 +2447,7 @@ document.getElementById('btn-color-ok').addEventListener('click', () => {
     } else {
       customColors[pendingSlotIndex] = hex;
       setColor(hex);
+      selectedCustomIndex = pendingSlotIndex; // 色を変えた（足した）枠を選んでいる状態にする
       buildCustomPalette();
     }
   }
