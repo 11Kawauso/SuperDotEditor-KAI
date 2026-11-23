@@ -808,7 +808,8 @@ input, select, textarea {
   bottom: 26px;
   z-index: 8;
   display: flex;
-  align-items: end;
+  flex-direction: column; /* 縦に並べる。いちばん大きい丸（今の色）が下 */
+  align-items: center;
   gap: 5px;
 }
 .color-dot {
@@ -832,12 +833,13 @@ input, select, textarea {
   right: 22px;
   z-index: 8;
   display: flex;
+  flex-direction: column; /* 縦に並べる */
   gap: 4px;
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 4px 8px;
+  padding: 8px 4px;
   font-size: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
@@ -855,8 +857,8 @@ input, select, textarea {
 }
 .zoom-controls #zoom-label {
   width: auto;
-  min-width: 44px;
-  padding: 0 4px;
+  min-width: 40px;
+  padding: 0 2px;
   border-radius: 11px;
   font-size: 12px;
   color: var(--text-muted);
