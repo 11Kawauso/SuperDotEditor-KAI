@@ -201,17 +201,11 @@ function syncActiveCells() {
 function initCells(c, r, keepOld) {
   invalidateAllLayerCaches(); // 全レイヤーのセル配列を作り直すため
   lastPaintPoint = null;      // 大きさが変わったら、Shift＋クリックの直線の始点は持ち越さない
+  const oldCols = cols, oldRows = rows;
   cols = c; rows = r;
   if (keepOld && layers.length) {
     // 大きさは全部のコマで同じなので、どのコマのレイヤーも作り直す
-    frames.forEach(f => f.layers.forEach(l => {
-      const old = l.cells;
-      l.cells = Array.from({length: r}, (_, ri) =>
-        Array.from({length: c}, (_, ci) =>
-          old[ri] && old[ri][ci] !== undefined ? old[ri][ci] : null
-        )
-      );
-    }));
+    frames.forEach(f => f.layers.forEach(l => resizeLayerCells(l, oldCols, oldRows, c, r)));
   } else {
     layerNameCounter = 1;
     layers = [makeLayer(`レイヤー${layerNameCounter++}`)];
@@ -225,6 +219,36 @@ function initCells(c, r, keepOld) {
   document.getElementById('stat-grid').textContent = `${cols}×${rows}`;
   updateLayerPanel();
   if (keepOld && window.onFramesChanged) window.onFramesChanged(); // 大きさが変わったので、どのコマの小さな絵も描き直す
+}
+
+// レイヤーの大きさを変える。縮めて外に出た所は捨てずに layer.offcut に取っておき、
+// あとで大きくしたときに元どおり出す（64×64 → 32×32 → 64×64 で絵が消えないように）。
+// offcut は「覚えている一番大きいキャンバス」の大きさの2次元配列で、今のキャンバスの外の所だけを使う。
+// 中身は書き換えずに毎回作り直すので、「元に戻す」の記録やコマの複製と同じものを指していてよい。
+function resizeLayerCells(l, oldCols, oldRows, c, r) {
+  const old = l.cells, oc = l.offcut;
+  // その位置の色：前のキャンバスの中なら今の絵、外なら前に取っておいた所
+  const at = (ri, ci) => {
+    if (ri < oldRows && ci < oldCols) return old[ri][ci];
+    const v = oc && oc[ri] ? oc[ri][ci] : null;
+    return v === undefined ? null : v;
+  };
+  l.cells = Array.from({length: r}, (_, ri) => Array.from({length: c}, (_, ci) => at(ri, ci)));
+  // 新しいキャンバスの外になった所（と、もっと前から外だった所）を取っておく
+  const h = Math.max(oldRows, oc ? oc.length : 0);
+  const w = Math.max(oldCols, oc && oc[0] ? oc[0].length : 0);
+  let kept = null;
+  if (h > r || w > c) {
+    let any = false;
+    kept = Array.from({length: h}, (_, ri) => Array.from({length: w}, (_, ci) => {
+      if (ri < r && ci < c) return null; // 今のキャンバスの中は cells にあるので持たない
+      const v = at(ri, ci);
+      if (v) any = true;
+      return v;
+    }));
+    if (!any) kept = null;
+  }
+  l.offcut = kept;
 }
 
 // 下の色の上に上の色を不透明度alphaで重ねた色を返す。
@@ -1629,7 +1653,8 @@ const btnRedo = document.getElementById('btn-redo');
 // 描く・レイヤーの操作など、ひとつのコマの中の変更は、そのコマのレイヤーだけを記録する（frame）。
 // コマの追加・削除・並べ替えやキャンバスの大きさの変更は全部のコマに関わるので、
 // 全部のコマを記録する（framesSnapshot）。コマが多いと大きくなるので、そのときだけにする
-const copyLayers = list => list.map(l => ({ name: l.name, visible: l.visible, opacity: l.opacity, locked: l.locked, cells: l.cells.map(r => [...r]) }));
+// offcut（キャンバスを縮めて隠れた所）は書き換えずに作り直すものなので、同じものを指したままでよい
+const copyLayers = list => list.map(l => ({ name: l.name, visible: l.visible, opacity: l.opacity, locked: l.locked, cells: l.cells.map(r => [...r]), offcut: l.offcut || null }));
 function layersSnapshot(frameIndex = currentFrame) {
   const isCurrent = frameIndex === currentFrame;
   return {
